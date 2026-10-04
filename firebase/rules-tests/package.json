@@ -1,0 +1,13 @@
+{
+  "name": "lets-spill-rules-tests",
+  "private": true,
+  "type": "module",
+  "description": "Firestore security rules tests for Let's Spill (run against the local emulator).",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project demo-lets-spill \"node --test firestore.rules.test.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.0"
+  }
+}

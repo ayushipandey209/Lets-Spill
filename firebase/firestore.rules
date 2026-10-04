@@ -1,0 +1,137 @@
+rules_version = '2';
+
+// =============================================================================
+// Let's Spill — Cloud Firestore Security Rules
+//
+// What lives in Firestore right now:
+//   users/{uid}               private profile (anonymous username, age range,
+//                             reading preferences). Owner-only.
+//   usernames/{nameLower}     { uid } uniqueness claim for anonymous handles.
+//   reports/{cid}_{uid}       create-only moderation reports.
+//
+// Confession content is bundled JSON for now, so there are no confession
+// collections yet. Everything else is denied.
+//
+// Keep categoryIds() in sync with assets/mock/categories.json and the
+// username pattern in sync with lib/features/onboarding/domain/username_generator.dart.
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function categoryIds() {
+      return ['relationships', 'school', 'workplace', 'friendship', 'family', 'life'];
+    }
+
+    function ageRanges() {
+      return ['teen', 'young', 'adult', 'mid', 'senior'];
+    }
+
+    function claimPath(nameLower) {
+      return /databases/$(database)/documents/usernames/$(nameLower);
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    // ------------------------------------------------------------------ users
+    match /users/{uid} {
+      function validProfile(d) {
+        return d.keys().hasOnly(['username', 'usernameLower', 'ageRange',
+                                 'preferredCategoryIds', 'onboardingComplete',
+                                 'createdAt', 'updatedAt'])
+          && d.keys().hasAll(['username', 'usernameLower', 'ageRange',
+                              'preferredCategoryIds', 'onboardingComplete',
+                              'createdAt', 'updatedAt'])
+          && d.username is string
+          && d.username.matches('^[A-Za-z]{6,24}[0-9]{2}$')
+          && d.usernameLower == d.username.lower()
+          && d.ageRange in ageRanges()
+          && d.preferredCategoryIds is list
+          && d.preferredCategoryIds.size() >= 1
+          && d.preferredCategoryIds.size() <= 6
+          && d.preferredCategoryIds.hasOnly(categoryIds())
+          && d.onboardingComplete == true
+          && d.updatedAt == request.time
+          // The username must be claimed by this user in the same write.
+          && getAfter(claimPath(d.usernameLower)).data.uid == request.auth.uid;
+      }
+
+      allow get: if isUser(uid);
+      allow list: if false;
+
+      allow create: if isUser(uid)
+        && validProfile(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+
+      // After onboarding, only reading preferences can change.
+      allow update: if isUser(uid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['preferredCategoryIds', 'updatedAt'])
+        && request.resource.data.preferredCategoryIds is list
+        && request.resource.data.preferredCategoryIds.size() >= 1
+        && request.resource.data.preferredCategoryIds.size() <= 6
+        && request.resource.data.preferredCategoryIds.hasOnly(categoryIds())
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if isUser(uid);
+    }
+
+    // -------------------------------------------------------------- usernames
+    // Public to signed-in users only so the app can check availability.
+    // Holds nothing but the owner's uid.
+    match /usernames/{nameLower} {
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && nameLower.matches('^[a-z]{6,24}[0-9]{2}$')
+        && getAfter(userPath(request.auth.uid)).data.usernameLower == nameLower;
+
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // ---------------------------------------------------------------- reports
+    // Deterministic id "<confessionId>_<uid>" ⇒ one report per user per post.
+    match /reports/{reportId} {
+      allow get: if signedIn()
+        && reportId.matches('^[A-Za-z0-9-]+_' + request.auth.uid + '$');
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(
+             ['confessionId', 'reporterUid', 'reason', 'details', 'createdAt',
+              'reviewStatus'])
+        && request.resource.data.confessionId is string
+        && request.resource.data.confessionId.matches('^[A-Za-z0-9-]{1,100}$')
+        && request.resource.data.reporterUid == request.auth.uid
+        && reportId == request.resource.data.confessionId + '_' + request.auth.uid
+        && request.resource.data.reason in
+             ['harassment', 'identifiesPerson', 'personalInfo', 'threat',
+              'hate', 'sexualContent', 'spam', 'other']
+        && request.resource.data.details is string
+        && request.resource.data.details.size() <= 500
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.reviewStatus == 'open';
+
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

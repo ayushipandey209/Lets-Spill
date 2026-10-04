@@ -1,0 +1,40 @@
+{
+  "categories": [
+    {
+      "id": "relationships",
+      "name": "Relationships",
+      "description": "Love, dating, heartbreak and the complicated in-between.",
+      "order": 0
+    },
+    {
+      "id": "school",
+      "name": "School",
+      "description": "Classrooms, campuses, exams and everything after the bell.",
+      "order": 1
+    },
+    {
+      "id": "workplace",
+      "name": "Workplace",
+      "description": "Offices, shifts, bosses, colleagues and side hustles.",
+      "order": 2
+    },
+    {
+      "id": "friendship",
+      "name": "Friendship",
+      "description": "The friends we keep, lose and quietly outgrow.",
+      "order": 3
+    },
+    {
+      "id": "family",
+      "name": "Family",
+      "description": "Parents, siblings, relatives and the homes we come from.",
+      "order": 4
+    },
+    {
+      "id": "life",
+      "name": "Life",
+      "description": "Everyday secrets, small regrets and private wins.",
+      "order": 5
+    }
+  ]
+}

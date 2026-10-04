@@ -1,0 +1,481 @@
+{
+  "_comment": "Fictional sample confessions for Let's Spill demo mode. No real people, schools or companies.",
+  "confessions": [
+    {
+      "id": "conf-025",
+      "categoryId": "relationships",
+      "text": "I've been having an emotional affair with a colleague for a year. Nothing physical has happened, but I check my phone for their messages before I check on my partner. I know exactly what this is, and I don't know how to stop.",
+      "createdAt": "2026-10-03T23:40:00Z",
+      "likeCount": 388,
+      "viewCount": 3011,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": true,
+      "reactionCounts": {
+        "same": 76,
+        "hugs": 81,
+        "wow": 41,
+        "oof": 3
+      }
+    },
+    {
+      "id": "conf-001",
+      "categoryId": "relationships",
+      "text": "I still keep the train ticket from our first date in my wallet. We broke up two years ago. I've moved cities, changed wallets twice, and every time I transfer the ticket over like it's my ID.",
+      "createdAt": "2026-10-03T21:14:00Z",
+      "likeCount": 214,
+      "viewCount": 1893,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 66,
+        "hugs": 28,
+        "wow": 1,
+        "oof": 23
+      }
+    },
+    {
+      "id": "conf-002",
+      "categoryId": "workplace",
+      "text": "I've been 'working remotely from the office' for three months. Nobody noticed I moved my desk to the empty corner by the plants. It's the most productive I've ever been.",
+      "createdAt": "2026-10-03T17:42:00Z",
+      "likeCount": 98,
+      "viewCount": 760,
+      "authorDisplayName": "@QuietComet27",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 20,
+        "hugs": 16,
+        "wow": 7,
+        "oof": 2
+      }
+    },
+    {
+      "id": "conf-003",
+      "categoryId": "school",
+      "text": "I pretended to understand calculus for an entire semester. I nodded so convincingly that classmates started asking me for help. I learned it the night before the final by teaching it to them.",
+      "createdAt": "2026-10-03T09:05:00Z",
+      "likeCount": 341,
+      "viewCount": 2410,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 55,
+        "hugs": 77,
+        "wow": 47,
+        "oof": 34
+      }
+    },
+    {
+      "id": "conf-004",
+      "categoryId": "friendship",
+      "text": "My best friend thinks I forgot her birthday this year. I didn't. I've been planning a surprise trip for six months and pretending to be clueless is the hardest acting job of my life.",
+      "createdAt": "2026-10-02T22:30:00Z",
+      "likeCount": 402,
+      "viewCount": 3105,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 61,
+        "hugs": 77,
+        "wow": 54,
+        "oof": 2
+      }
+    },
+    {
+      "id": "conf-005",
+      "categoryId": "family",
+      "text": "My parents think I quit piano at fourteen. I didn't. I play on the old keyboard at my aunt's place every Sunday. I'm not ready to let them hear how much I missed it.",
+      "createdAt": "2026-10-02T15:11:00Z",
+      "likeCount": 187,
+      "viewCount": 1320,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 24,
+        "hugs": 20,
+        "wow": 13,
+        "oof": 7
+      }
+    },
+    {
+      "id": "conf-006",
+      "categoryId": "life",
+      "text": "I water my neighbour's plants while they travel. I've started talking to them. The fern is my favourite and I feel a little guilty about that.",
+      "createdAt": "2026-10-02T08:48:00Z",
+      "likeCount": 133,
+      "viewCount": 915,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 32,
+        "hugs": 32,
+        "wow": 0,
+        "oof": 6
+      }
+    },
+    {
+      "id": "conf-026",
+      "categoryId": "relationships",
+      "text": "My partner cheated two years ago and I forgave them. I thought I'd moved on. Last week I caught myself reading their messages while they slept, and I hated who I'd become.",
+      "createdAt": "2026-10-01T22:05:00Z",
+      "likeCount": 452,
+      "viewCount": 3390,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": true,
+      "reactionCounts": {
+        "same": 85,
+        "hugs": 49,
+        "wow": 40,
+        "oof": 25
+      }
+    },
+    {
+      "id": "conf-007",
+      "categoryId": "relationships",
+      "text": "I said 'I love you' first and he said 'thank you'. We've been married eleven years now and I still bring it up at every anniversary dinner.",
+      "createdAt": "2026-10-01T19:26:00Z",
+      "likeCount": 529,
+      "viewCount": 4012,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 157,
+        "hugs": 121,
+        "wow": 53,
+        "oof": 28
+      }
+    },
+    {
+      "id": "conf-008",
+      "categoryId": "workplace",
+      "text": "I accidentally replied-all with a cat meme to a company-wide budget email. Instead of an apology, I got four promotions-worth of reactions. My manager still calls me 'the morale officer'.",
+      "createdAt": "2026-10-01T12:03:00Z",
+      "likeCount": 276,
+      "viewCount": 2207,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 62,
+        "hugs": 64,
+        "wow": 17,
+        "oof": 0
+      }
+    },
+    {
+      "id": "conf-028",
+      "categoryId": "life",
+      "text": "I've been secretly seeing a therapist for six months. Nobody in my life knows. It's the only hour of the week where I don't pretend I'm fine.",
+      "createdAt": "2026-09-30T21:30:00Z",
+      "likeCount": 512,
+      "viewCount": 3870,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 155,
+        "hugs": 91,
+        "wow": 27,
+        "oof": 63
+      }
+    },
+    {
+      "id": "conf-009",
+      "categoryId": "school",
+      "text": "I failed my driving test three times and told everyone I was 'just choosing not to drive'. I passed on the fourth try last month and still haven't told anyone.",
+      "createdAt": "2026-09-30T20:17:00Z",
+      "likeCount": 158,
+      "viewCount": 1188,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 29,
+        "hugs": 37,
+        "wow": 13,
+        "oof": 10
+      }
+    },
+    {
+      "id": "conf-010",
+      "categoryId": "friendship",
+      "text": "There's a friend I've been slowly drifting from and I don't know if I should fix it or let it go. We haven't argued. We just don't laugh at the same things anymore.",
+      "createdAt": "2026-09-30T10:40:00Z",
+      "likeCount": 311,
+      "viewCount": 2569,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 73,
+        "hugs": 40,
+        "wow": 13,
+        "oof": 21
+      }
+    },
+    {
+      "id": "conf-011",
+      "categoryId": "family",
+      "text": "My younger brother thinks he taught himself to ride a bike. I was running behind him holding the seat for twenty minutes. I let go and never told him.",
+      "createdAt": "2026-09-29T18:55:00Z",
+      "likeCount": 466,
+      "viewCount": 3320,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 71,
+        "hugs": 57,
+        "wow": 48,
+        "oof": 6
+      }
+    },
+    {
+      "id": "conf-012",
+      "categoryId": "life",
+      "text": "I cancelled plans tonight, put on clean sheets, made soup and read for four hours. Best evening I've had all year and I'm not sorry.",
+      "createdAt": "2026-09-29T07:22:00Z",
+      "likeCount": 389,
+      "viewCount": 2744,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 93,
+        "hugs": 92,
+        "wow": 44,
+        "oof": 38
+      }
+    },
+    {
+      "id": "conf-013",
+      "categoryId": "relationships",
+      "text": "I've been seeing someone for two months and I still don't know if we're exclusive. I'm too scared to ask in case the answer changes everything.",
+      "createdAt": "2026-09-28T23:09:00Z",
+      "likeCount": 245,
+      "viewCount": 2051,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 46,
+        "hugs": 26,
+        "wow": 29,
+        "oof": 17
+      }
+    },
+    {
+      "id": "conf-027",
+      "categoryId": "workplace",
+      "text": "Our team lead is having an affair with someone in another department and the whole floor knows except their spouse, who brings lunch every Friday. I don't know whether staying quiet makes me kind or a coward.",
+      "createdAt": "2026-09-28T19:15:00Z",
+      "likeCount": 301,
+      "viewCount": 2650,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": true,
+      "reactionCounts": {
+        "same": 71,
+        "hugs": 34,
+        "wow": 13,
+        "oof": 36
+      }
+    },
+    {
+      "id": "conf-014",
+      "categoryId": "workplace",
+      "text": "I applied for my own manager's job when she left and got it. Now I sit in her old chair and realise how much she protected us from. I owe her an apology I don't know how to give.",
+      "createdAt": "2026-09-28T14:36:00Z",
+      "likeCount": 302,
+      "viewCount": 2290,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 52,
+        "hugs": 54,
+        "wow": 5,
+        "oof": 35
+      }
+    },
+    {
+      "id": "conf-015",
+      "categoryId": "school",
+      "text": "In my final year I wrote anonymous encouraging notes and left them in library books. Last week a stranger at a café told me a note in a library book got her through exams.",
+      "createdAt": "2026-09-27T16:58:00Z",
+      "likeCount": 612,
+      "viewCount": 4870,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 151,
+        "hugs": 141,
+        "wow": 79,
+        "oof": 46
+      }
+    },
+    {
+      "id": "conf-016",
+      "categoryId": "friendship",
+      "text": "I lied about liking hiking to fit into a new friend group. Two years later I genuinely love it and they're my closest people. Sometimes the fake-it part works.",
+      "createdAt": "2026-09-27T09:31:00Z",
+      "likeCount": 277,
+      "viewCount": 1965,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 70,
+        "hugs": 39,
+        "wow": 45,
+        "oof": 4
+      }
+    },
+    {
+      "id": "conf-017",
+      "categoryId": "family",
+      "text": "Every time my grandmother asks if I've eaten, I say no, even if I have. It's the only way she'll sit down with me for an hour.",
+      "createdAt": "2026-09-26T19:44:00Z",
+      "likeCount": 701,
+      "viewCount": 5512,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 98,
+        "hugs": 154,
+        "wow": 29,
+        "oof": 37
+      }
+    },
+    {
+      "id": "conf-018",
+      "categoryId": "life",
+      "text": "I've had the same 'New Year' goal for six years: learn to swim. This summer I finally did it. I'm thirty-four and I cried in the shallow end.",
+      "createdAt": "2026-09-26T11:12:00Z",
+      "likeCount": 548,
+      "viewCount": 3987,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 78,
+        "hugs": 83,
+        "wow": 12,
+        "oof": 48
+      }
+    },
+    {
+      "id": "conf-019",
+      "categoryId": "relationships",
+      "text": "I almost texted my ex last night after seeing our song in a playlist. I typed it, deleted it and texted my sister instead. Small victories.",
+      "createdAt": "2026-09-25T22:47:00Z",
+      "likeCount": 198,
+      "viewCount": 1477,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 41,
+        "hugs": 33,
+        "wow": 23,
+        "oof": 5
+      }
+    },
+    {
+      "id": "conf-020",
+      "categoryId": "workplace",
+      "text": "I'm the person who refills the office coffee machine before anyone gets in. Nobody knows it's me and I'd like to keep it that way.",
+      "createdAt": "2026-09-25T06:58:00Z",
+      "likeCount": 233,
+      "viewCount": 1602,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 52,
+        "hugs": 45,
+        "wow": 13,
+        "oof": 21
+      }
+    },
+    {
+      "id": "conf-021",
+      "categoryId": "school",
+      "text": "I switched majors in my third year and told my family it was a 'scheduling issue'. I graduate in spring with a degree they still don't know I'm doing.",
+      "createdAt": "2026-09-24T13:20:00Z",
+      "likeCount": 179,
+      "viewCount": 1415,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 39,
+        "hugs": 39,
+        "wow": 29,
+        "oof": 21
+      }
+    },
+    {
+      "id": "conf-022",
+      "categoryId": "life",
+      "text": "I'm terrified of starting over at thirty, but I handed in my notice today anyway. Writing it here makes it feel real.",
+      "createdAt": "2026-09-24T08:03:00Z",
+      "likeCount": 455,
+      "viewCount": 3260,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 138,
+        "hugs": 54,
+        "wow": 21,
+        "oof": 34
+      }
+    },
+    {
+      "id": "conf-023",
+      "categoryId": "friendship",
+      "text": "My friend asked me to be honest about her business idea. I was. She hasn't replied in a week. I'm still not sure honesty was the kind thing.",
+      "createdAt": "2026-09-23T17:35:00Z",
+      "likeCount": 141,
+      "viewCount": 1104,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 40,
+        "hugs": 21,
+        "wow": 5,
+        "oof": 14
+      }
+    },
+    {
+      "id": "conf-024",
+      "categoryId": "family",
+      "text": "Dad and I don't talk about feelings, but every time I visit he fills my car's tank without saying anything. I think that's how he says it.",
+      "createdAt": "2026-09-22T20:10:00Z",
+      "likeCount": 633,
+      "viewCount": 4705,
+      "authorDisplayName": "Anonymous",
+      "status": "published",
+      "mature": false,
+      "reactionCounts": {
+        "same": 176,
+        "hugs": 97,
+        "wow": 81,
+        "oof": 71
+      }
+    }
+  ]
+}
