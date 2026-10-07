@@ -75,6 +75,7 @@ class AppSettings extends Equatable {
     this.haptics = true,
     this.reduceMotion = false,
     this.analyticsEnabled = true,
+    this.notificationsEnabled = true,
   });
 
   factory AppSettings.fromJson(Map<String, dynamic>? json) {
@@ -111,6 +112,7 @@ class AppSettings extends Equatable {
       haptics: flag('haptics', d.haptics),
       reduceMotion: flag('reduceMotion', d.reduceMotion),
       analyticsEnabled: flag('analyticsEnabled', d.analyticsEnabled),
+      notificationsEnabled: flag('notificationsEnabled', d.notificationsEnabled),
     );
   }
 
@@ -132,6 +134,7 @@ class AppSettings extends Equatable {
   final bool haptics;
   final bool reduceMotion;
   final bool analyticsEnabled;
+  final bool notificationsEnabled;
 
   Map<String, dynamic> toJson() => {
     'theme': theme.name,
@@ -146,6 +149,7 @@ class AppSettings extends Equatable {
     'haptics': haptics,
     'reduceMotion': reduceMotion,
     'analyticsEnabled': analyticsEnabled,
+    'notificationsEnabled': notificationsEnabled,
   };
 
   AppSettings copyWith({
@@ -161,6 +165,7 @@ class AppSettings extends Equatable {
     bool? haptics,
     bool? reduceMotion,
     bool? analyticsEnabled,
+    bool? notificationsEnabled,
   }) {
     return AppSettings(
       theme: theme ?? this.theme,
@@ -175,6 +180,7 @@ class AppSettings extends Equatable {
       haptics: haptics ?? this.haptics,
       reduceMotion: reduceMotion ?? this.reduceMotion,
       analyticsEnabled: analyticsEnabled ?? this.analyticsEnabled,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
     );
   }
 
@@ -192,5 +198,6 @@ class AppSettings extends Equatable {
     haptics,
     reduceMotion,
     analyticsEnabled,
+    notificationsEnabled,
   ];
 }

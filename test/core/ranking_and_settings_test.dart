@@ -74,6 +74,7 @@ void main() {
         haptics: false,
         reduceMotion: true,
         analyticsEnabled: false,
+        notificationsEnabled: false,
       );
       expect(AppSettings.fromJson(s.toJson()), s);
     });

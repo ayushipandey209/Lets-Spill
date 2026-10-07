@@ -6,6 +6,7 @@ import '../../../../app/theme/app_tokens.dart';
 import '../../../../core/analytics/analytics.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/errors/app_exception.dart';
+import '../../../../core/services/onesignal_service.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/common.dart';
 import '../../../auth/presentation/session_cubit.dart';
@@ -216,6 +217,34 @@ class SettingsPage extends StatelessWidget {
                 value: settings.haptics,
                 onChanged: (v) =>
                     set('haptics', '$v', settings.copyWith(haptics: v)),
+              ),
+            ],
+          ),
+
+          // ---------------------------------------------- Notifications ---
+          _Section(
+            title: 'Notifications',
+            children: [
+              _SwitchRow(
+                icon: Icons.notifications_outlined,
+                title: 'Push notifications',
+                subtitle:
+                    'Get notified about new replies, reactions, and trending confessions.',
+                value: settings.notificationsEnabled,
+                onChanged: (v) async {
+                  final notifications = context.read<NotificationService>();
+                  if (v) {
+                    await notifications.requestPushPermission();
+                    await notifications.optIn();
+                  } else {
+                    await notifications.optOut();
+                  }
+                  set(
+                    'notifications_enabled',
+                    '$v',
+                    settings.copyWith(notificationsEnabled: v),
+                  );
+                },
               ),
             ],
           ),

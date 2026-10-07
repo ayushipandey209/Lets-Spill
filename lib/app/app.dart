@@ -280,8 +280,7 @@ class _ServicesScopeState extends State<_ServicesScope> {
             ),
             BlocListener<SettingsCubit, AppSettings>(
               listenWhen: (prev, curr) => prev != curr,
-              listener: (context, settings) =>
-                  _applySettingsToAnalytics(settings),
+              listener: (context, settings) => _applySettings(settings),
             ),
           ],
           child: widget.child,
@@ -334,7 +333,7 @@ class _ServicesScopeState extends State<_ServicesScope> {
             (Object _) {},
           );
         }
-        _applySettingsToAnalytics(settingsCubit.state);
+        _applySettings(settingsCubit.state);
       case SessionStatus.unknown:
       case SessionStatus.loadingProfile:
       case SessionStatus.failure:
@@ -342,13 +341,19 @@ class _ServicesScopeState extends State<_ServicesScope> {
     }
   }
 
-  void _applySettingsToAnalytics(AppSettings s) {
+  void _applySettings(AppSettings s) {
     final analytics = widget.services.analytics;
+    final notifications = widget.services.notifications;
     analytics
       ..setEnabled(s.analyticsEnabled)
       ..setUserProperty(AnalyticsProperties.theme, s.theme.name)
       ..setUserProperty(AnalyticsProperties.textSize, s.textSize.name)
       ..setUserProperty(AnalyticsProperties.feedLayout, s.feedLayout.name);
+    if (s.notificationsEnabled) {
+      notifications.optIn();
+    } else {
+      notifications.optOut();
+    }
   }
 }
 

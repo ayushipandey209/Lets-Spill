@@ -10,7 +10,11 @@ abstract class NotificationService {
   Future<void> logout();
   Future<void> addTag(String key, String value);
   Future<void> removeTag(String key);
-  Future<void> requestPushPermission();
+  Future<bool> requestPushPermission();
+  Future<void> optIn();
+  Future<void> optOut();
+  bool get isOptedIn;
+  bool get hasPermission;
   void addPushSubscriptionObserver(
     void Function(String subscriptionId) onRegistered,
   );
@@ -79,13 +83,39 @@ class OneSignalService implements NotificationService {
   }
 
   @override
-  Future<void> requestPushPermission() async {
+  Future<bool> requestPushPermission() async {
     try {
-      await OneSignal.Notifications.requestPermission(true);
+      final granted = await OneSignal.Notifications.requestPermission(true);
+      return granted;
     } catch (e) {
       debugPrint('OneSignal requestPermission error: $e');
+      return false;
     }
   }
+
+  @override
+  Future<void> optIn() async {
+    try {
+      await OneSignal.User.pushSubscription.optIn();
+    } catch (e) {
+      debugPrint('OneSignal optIn error: $e');
+    }
+  }
+
+  @override
+  Future<void> optOut() async {
+    try {
+      await OneSignal.User.pushSubscription.optOut();
+    } catch (e) {
+      debugPrint('OneSignal optOut error: $e');
+    }
+  }
+
+  @override
+  bool get isOptedIn => OneSignal.User.pushSubscription.optedIn ?? false;
+
+  @override
+  bool get hasPermission => OneSignal.Notifications.permission;
 
   @override
   String? get currentSubscriptionId => OneSignal.User.pushSubscription.id;
@@ -137,7 +167,19 @@ class NoopNotificationService implements NotificationService {
   Future<void> removeTag(String key) async {}
 
   @override
-  Future<void> requestPushPermission() async {}
+  Future<bool> requestPushPermission() async => true;
+
+  @override
+  Future<void> optIn() async {}
+
+  @override
+  Future<void> optOut() async {}
+
+  @override
+  bool get isOptedIn => true;
+
+  @override
+  bool get hasPermission => true;
 
   @override
   void addPushSubscriptionObserver(

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../app/theme/app_tokens.dart';
 import '../../../../core/analytics/analytics.dart';
+import '../../../../core/services/onesignal_service.dart';
 import '../../../../core/utils/ui_notice.dart';
 import '../../../../core/widgets/common.dart';
 import '../../../auth/presentation/session_cubit.dart';
@@ -50,12 +51,14 @@ class OnboardingView extends StatelessWidget {
           p.status != c.status || p.errorMessage != c.errorMessage,
       listener: (context, state) {
         final analytics = context.read<Analytics>();
+        final notifications = context.read<NotificationService>();
         final profile = state.profile;
         if (state.status == SubmitStatus.success && profile != null) {
           analytics.log(AnalyticsEvents.signUp, {
             'age_range': profile.ageRange.name,
             'categories': profile.preferredCategoryIds.length,
           });
+          notifications.requestPushPermission();
           context.read<SessionCubit>().onboardingCompleted(profile);
           showMessage(context, 'Welcome, ${profile.handle}.');
         }
