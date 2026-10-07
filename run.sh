@@ -131,9 +131,10 @@ show_menu() {
   echo -e "  ${CYAN}[4]${NC} Build ${BOLD}Release App Bundle (.aab)${NC} for Google Play Store"
   echo -e "  ${CYAN}[5]${NC} Build ${BOLD}Release APK (.apk)${NC} for direct installation"
   echo -e "  ${CYAN}[6]${NC} Run Flutter Clean & Get Dependencies"
+  echo -e "  ${CYAN}[7]${NC} 🔄 Switch ${BOLD}Git / GitHub Account${NC} (Personal / Office)"
   echo -e "  ${CYAN}[q]${NC} Quit"
   echo ""
-  echo -n "Enter choice [1-6, q]: "
+  echo -n "Enter choice [1-7, q]: "
   read -r choice
 
   case $choice in
@@ -157,6 +158,10 @@ show_menu() {
       flutter clean
       flutter pub get
       echo -e "${GREEN}✓ Done!${NC}"
+      ;;
+    7)
+      ./switch_git.sh
+      show_menu
       ;;
     q|Q)
       echo -e "\n${YELLOW}Goodbye!${NC}"
