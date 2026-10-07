@@ -31,10 +31,14 @@ class SplashPage extends StatelessWidget {
                 maxWidth: 520,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: AppSpacing.xxl),
-                    const Wordmark(size: 52, showTagline: true),
+                    Image.asset(
+                      'assets/images/splash_logo.png',
+                      width: 240,
+                      fit: BoxFit.contain,
+                    ),
                     const SizedBox(height: AppSpacing.xl),
                     AnimatedSwitcher(
                       duration: AppMotion.medium,
@@ -47,6 +51,8 @@ class SplashPage extends StatelessWidget {
                                 width: 120,
                                 child: LinearProgressIndicator(
                                   minHeight: 2,
+                                  backgroundColor: t.border.withValues(alpha: 0.3),
+                                  color: t.ink,
                                   borderRadius: BorderRadius.circular(2),
                                 ),
                               ),
