@@ -13,16 +13,16 @@ enum SessionStatus {
   /// Waiting for Firebase to report the auth state.
   unknown,
 
-  /// Nobody is signed in → onboarding intro + Google button.
+  /// Nobody is signed in: onboarding intro and the Google button.
   signedOut,
 
   /// Signed in; loading `users/{uid}`.
   loadingProfile,
 
-  /// Signed in but no profile yet → username / preferences / age steps.
+  /// Signed in but no profile yet: username, interests and age steps.
   needsOnboarding,
 
-  /// Signed in with a complete profile → the app.
+  /// Signed in with a complete profile: the app.
   ready,
 
   /// Profile couldn't be loaded (e.g. offline). Retryable.
@@ -48,7 +48,7 @@ class SessionState extends Equatable {
 
 /// App-wide session: Firebase auth state + the Firestore profile.
 ///
-/// Drives the root gate: intro → Google sign-in → onboarding → home.
+/// Drives the root gate: intro, Google sign in, onboarding, home.
 class SessionCubit extends Cubit<SessionState> {
   SessionCubit({
     required AuthRepository auth,

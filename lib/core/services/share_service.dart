@@ -21,8 +21,8 @@ class SharePlusShareService implements ShareService {
 }
 
 /// Builds the text that gets shared. Only the confession text and a generic
-/// attribution — no URLs (there is no public deep link yet), no author data.
+/// attribution. No URLs (there is no public deep link yet), no author data.
 String buildShareText(String confessionText) {
   return '“${confessionText.trim()}”\n\n'
-      '— shared anonymously from ${AppConfig.appName}. ${AppConfig.tagline}';
+      'Shared anonymously from ${AppConfig.appName}. ${AppConfig.tagline}';
 }

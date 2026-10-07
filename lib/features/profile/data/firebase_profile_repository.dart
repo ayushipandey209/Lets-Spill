@@ -4,13 +4,15 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import '../../../core/data/firebase/firebase_error_mapper.dart';
 import '../../../core/data/firebase/firestore_paths.dart';
 import '../../../core/errors/app_exception.dart';
+import '../../settings/domain/app_settings.dart';
 import '../domain/profile_repository.dart';
 import '../domain/user_profile.dart';
 
 /// Profiles in Cloud Firestore.
 ///
-/// * `users/{uid}` — private: username, age range, reading preferences.
-/// * `usernames/{usernameLower}` — `{ uid }`, a uniqueness claim so two
+/// * `users/{uid}`: private username, age range, reading preferences and
+///   app settings.
+/// * `usernames/{usernameLower}`: `{ uid }`, a uniqueness claim so two
 ///   people can't pick the same anonymous handle.
 ///
 /// No name, email, photo or birth date is stored.
@@ -110,6 +112,17 @@ class FirebaseProfileRepository implements ProfileRepository {
   }
 
   @override
+  Future<void> updateSettings(AppSettings settings) {
+    return guardFirebase(() async {
+      final uid = _requireUid();
+      await _user(uid).update({
+        UserFields.settings: settings.toJson(),
+        UserFields.updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  @override
   Future<void> deleteProfile() {
     return guardFirebase(() async {
       final uid = _requireUid();
@@ -133,6 +146,12 @@ class FirebaseProfileRepository implements ProfileRepository {
               .whereType<String>()
               .toList(growable: false),
       createdAt: (data[UserFields.createdAt] as Timestamp?)?.toDate(),
+      settings: switch (data[UserFields.settings]) {
+        final Map<dynamic, dynamic> raw => AppSettings.fromJson(
+          Map<String, dynamic>.from(raw),
+        ),
+        _ => null,
+      },
     );
   }
 }

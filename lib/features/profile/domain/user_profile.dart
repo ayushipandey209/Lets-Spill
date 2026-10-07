@@ -1,12 +1,14 @@
 import 'package:equatable/equatable.dart';
 
-/// Age bracket picked during onboarding. Only the bracket is stored —
+import '../../settings/domain/app_settings.dart';
+
+/// Age bracket picked during onboarding. Only the bracket is stored,
 /// never a birth date.
 enum AgeRange {
-  teen('13–17'),
-  young('18–24'),
-  adult('25–34'),
-  mid('35–44'),
+  teen('13 to 17'),
+  young('18 to 24'),
+  adult('25 to 34'),
+  mid('35 to 44'),
   senior('45+');
 
   const AgeRange(this.label);
@@ -34,6 +36,7 @@ class UserProfile extends Equatable {
     required this.ageRange,
     required this.preferredCategoryIds,
     this.createdAt,
+    this.settings,
   });
 
   final String uid;
@@ -42,18 +45,25 @@ class UserProfile extends Equatable {
   final List<String> preferredCategoryIds;
   final DateTime? createdAt;
 
+  /// Settings saved on the account, or `null` if never synced.
+  final AppSettings? settings;
+
   String get handle => '@$username';
 
   /// Whether mature confessions may be shown to this reader.
   bool get canSeeMature => !ageRange.isMinor;
 
-  UserProfile copyWith({List<String>? preferredCategoryIds}) {
+  UserProfile copyWith({
+    List<String>? preferredCategoryIds,
+    AppSettings? settings,
+  }) {
     return UserProfile(
       uid: uid,
       username: username,
       ageRange: ageRange,
       preferredCategoryIds: preferredCategoryIds ?? this.preferredCategoryIds,
       createdAt: createdAt,
+      settings: settings ?? this.settings,
     );
   }
 
@@ -64,6 +74,7 @@ class UserProfile extends Equatable {
     ageRange,
     preferredCategoryIds,
     createdAt,
+    settings,
   ];
 }
 

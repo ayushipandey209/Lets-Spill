@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# Let's Spill — Runner & Build Helper Script
+# Let's Spill — Android Runner & Build Helper Script
 # ==============================================================================
 
 set -e
@@ -24,26 +24,49 @@ print_banner() {
   echo "  ███████╗███████╗   ██║   ███████║    ███████║██║     ██║███████╗███████╗"
   echo "  ╚══════╝╚══════╝   ╚═╝   ╚══════╝    ╚══════╝╚═╝     ╚═╝╚══════╝╚══════╝"
   echo -e "${NC}"
-  echo -e "${BOLD}Let's Spill App Management Menu${NC}"
+  echo -e "${BOLD}Let's Spill — Android App Management Menu${NC}"
   echo "----------------------------------------------------"
+}
+
+# Function to get active android device/emulator ID
+find_android_device() {
+  # 1. Try finding via adb
+  local adb_dev=$(adb devices 2>/dev/null | grep -w "device" | grep -v "List" | awk '{print $1}' | head -n 1)
+  if [ -n "$adb_dev" ]; then
+    echo "$adb_dev"
+    return
+  fi
+
+  # 2. Try finding via flutter devices
+  local flutter_dev=$(flutter devices 2>/dev/null | grep -i "android" | awk -F'•' '{print $2}' | tr -d ' ' | head -n 1)
+  if [ -n "$flutter_dev" ]; then
+    echo "$flutter_dev"
+    return
+  fi
+
+  echo ""
 }
 
 # Function to run on Android Emulator
 run_android_emulator() {
-  echo -e "\n${CYAN}>>> Checking available Android emulators...${NC}"
+  echo -e "\n${CYAN}>>> Checking for running Android devices/emulators...${NC}"
   
-  # Check if an android emulator is already running
-  RUNNING_EMU=$(flutter devices | grep "emulator-" | awk '{print $NF}' | tr -d '()' | head -n 1)
+  TARGET_DEVICE=$(find_android_device)
   
-  if [ -n "$RUNNING_EMU" ]; then
-    echo -e "${GREEN}✓ Found running Android emulator: ${BOLD}$RUNNING_EMU${NC}"
-    TARGET_DEVICE="$RUNNING_EMU"
+  if [ -n "$TARGET_DEVICE" ]; then
+    echo -e "${GREEN}✓ Found active Android device: ${BOLD}$TARGET_DEVICE${NC}"
   else
-    echo -e "${YELLOW}No running Android emulator found. Attempting to launch Pixel_9a...${NC}"
-    flutter emulators --launch Pixel_9a 2>/dev/null || flutter emulators --launch $(flutter emulators | grep android | awk '{print $1}' | head -n 1)
-    echo "Waiting for emulator to boot up..."
-    sleep 5
-    TARGET_DEVICE=$(flutter devices | grep "emulator-" | awk '{print $NF}' | tr -d '()' | head -n 1)
+    echo -e "${YELLOW}No running Android emulator found. Attempting to launch Pixel_9a / default AVD...${NC}"
+    flutter emulators --launch Pixel_9a 2>/dev/null || flutter emulators --launch $(flutter emulators | grep android | awk '{print $1}' | head -n 1) || true
+    
+    echo -e "${CYAN}Waiting for emulator to initialize...${NC}"
+    for i in {1..12}; do
+      sleep 2
+      TARGET_DEVICE=$(find_android_device)
+      if [ -n "$TARGET_DEVICE" ]; then
+        break
+      fi
+    done
   fi
 
   if [ -z "$TARGET_DEVICE" ]; then
@@ -52,16 +75,6 @@ run_android_emulator() {
 
   echo -e "\n${GREEN}>>> Launching Let's Spill on Android ($TARGET_DEVICE)...${NC}"
   flutter run -d "$TARGET_DEVICE"
-}
-
-# Function to run on iOS Simulator
-run_ios_simulator() {
-  echo -e "\n${CYAN}>>> Launching iOS Simulator...${NC}"
-  open -a Simulator 2>/dev/null || true
-  flutter emulators --launch apple_ios_simulator 2>/dev/null || true
-  
-  echo -e "\n${GREEN}>>> Launching Let's Spill on iOS Simulator...${NC}"
-  flutter run -d "iPhone" || flutter run -d "ios"
 }
 
 # Function to run on Connected Physical/Other Device
@@ -125,16 +138,15 @@ build_release_apk() {
 show_menu() {
   print_banner
   echo -e "${BOLD}Please select an option:${NC}\n"
-  echo -e "  ${CYAN}[1]${NC} Run on ${BOLD}Android Emulator${NC} (Pixel 9a)"
-  echo -e "  ${CYAN}[2]${NC} Run on ${BOLD}iOS Simulator${NC}"
-  echo -e "  ${CYAN}[3]${NC} Run on ${BOLD}Connected Device${NC} (Physical phone / custom target)"
-  echo -e "  ${CYAN}[4]${NC} Build ${BOLD}Release App Bundle (.aab)${NC} for Google Play Store"
-  echo -e "  ${CYAN}[5]${NC} Build ${BOLD}Release APK (.apk)${NC} for direct installation"
-  echo -e "  ${CYAN}[6]${NC} Run Flutter Clean & Get Dependencies"
-  echo -e "  ${CYAN}[7]${NC} 🔄 Switch ${BOLD}Git / GitHub Account${NC} (Personal / Office)"
-  echo -e "  ${CYAN}[q]${NC} Quit"
+  echo -e "  ${CYAN}[1]${NC} 📱 Run on ${BOLD}Android Emulator${NC} (Pixel 9a / Active Emulator)"
+  echo -e "  ${CYAN}[2]${NC} 🔌 Run on ${BOLD}Connected Physical Device / Specific Target${NC}"
+  echo -e "  ${CYAN}[3]${NC} 📦 Build ${BOLD}Release App Bundle (.aab)${NC} for Google Play Store"
+  echo -e "  ${CYAN}[4]${NC} 📲 Build ${BOLD}Release APK (.apk)${NC} for direct installation"
+  echo -e "  ${CYAN}[5]${NC} 🧹 Run Flutter Clean & Get Dependencies"
+  echo -e "  ${CYAN}[6]${NC} 🔄 Switch ${BOLD}Git / GitHub Account${NC} (Personal / Office)"
+  echo -e "  ${CYAN}[q]${NC} ❌ Quit"
   echo ""
-  echo -n "Enter choice [1-7, q]: "
+  echo -n "Enter choice [1-6, q]: "
   read -r choice
 
   case $choice in
@@ -142,24 +154,21 @@ show_menu() {
       run_android_emulator
       ;;
     2)
-      run_ios_simulator
-      ;;
-    3)
       run_connected_device
       ;;
-    4)
+    3)
       build_playstore_bundle
       ;;
-    5)
+    4)
       build_release_apk
       ;;
-    6)
+    5)
       echo -e "\n${CYAN}Cleaning and updating packages...${NC}"
       flutter clean
       flutter pub get
       echo -e "${GREEN}✓ Done!${NC}"
       ;;
-    7)
+    6)
       ./switch_git.sh
       show_menu
       ;;

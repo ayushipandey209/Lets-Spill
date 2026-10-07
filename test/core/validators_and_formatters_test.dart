@@ -87,7 +87,7 @@ void main() {
   });
 
   group('AgeRange', () {
-    test('only 13–17 is treated as a minor', () {
+    test('only 13 to 17 is treated as a minor', () {
       expect(AgeRange.teen.isMinor, isTrue);
       expect(AgeRange.values.where((r) => r.isMinor), [AgeRange.teen]);
       expect(AgeRange.parse('adult'), AgeRange.adult);

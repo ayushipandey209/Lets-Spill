@@ -47,7 +47,7 @@ abstract final class FirebaseErrorMapper {
       case 'operation-not-allowed':
         return AuthException(
           'Google sign-in is not enabled for this Firebase project. '
-          'Enable it in Firebase Console → Authentication → Sign-in method.',
+          'Enable it in the Firebase Console under Authentication, Sign-in method.',
           code: e.code,
         );
       case 'network-request-failed':

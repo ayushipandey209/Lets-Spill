@@ -4,13 +4,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../app/theme/app_tokens.dart';
+import '../../../../core/analytics/analytics.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/widgets/common.dart';
 import '../../../../core/widgets/wordmark.dart';
 import '../../../auth/domain/auth_repository.dart';
 
 /// First screen for signed-out readers: a short swipeable intro and one
-/// button — Continue with Google.
+/// button, Continue with Google.
 class IntroPage extends StatefulWidget {
   const IntroPage({super.key});
 
@@ -34,7 +35,7 @@ class _IntroPageState extends State<IntroPage> {
     _IntroSlide(
       Icons.auto_stories_outlined,
       'Read what people never say out loud.',
-      'Relationships, school, work, friendships, family — real stories, '
+      'Relationships, school, work, friendships, family. Real stories, '
           'told anonymously.',
     ),
     _IntroSlide(
@@ -46,7 +47,7 @@ class _IntroPageState extends State<IntroPage> {
     _IntroSlide(
       Icons.favorite_border,
       'React, save, come back.',
-      'Feel seen with a tap — Same, Hugs, Wow, Oof. Save the ones that stay '
+      'Feel seen with a tap: Same, Hugs, Wow, Oof. Save the ones that stay '
           'with you.',
     ),
   ];
@@ -60,11 +61,13 @@ class _IntroPageState extends State<IntroPage> {
   Future<void> _signIn() async {
     if (_signingIn) return;
     setState(() => _signingIn = true);
+    final analytics = context.read<Analytics>();
     try {
       await context.read<AuthRepository>().signInWithGoogle();
+      analytics.log(AnalyticsEvents.login);
       // The session gate takes over from here.
     } on SignInCancelledException {
-      // User closed the picker — nothing to report.
+      // User closed the picker; nothing to report.
     } catch (e) {
       if (mounted) showMessage(context, asAppException(e).message, isError: true);
     } finally {

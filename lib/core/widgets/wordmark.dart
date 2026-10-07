@@ -4,7 +4,7 @@ import '../../app/theme/app_theme.dart';
 import '../../app/theme/app_tokens.dart';
 import '../config/app_config.dart';
 
-/// "Let's Spill" set purely in type — no logo image.
+/// "Let's Spill" set purely in type, no logo image.
 class Wordmark extends StatelessWidget {
   const Wordmark({super.key, this.size = 44, this.showTagline = false});
 

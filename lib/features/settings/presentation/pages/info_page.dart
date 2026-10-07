@@ -17,21 +17,30 @@ class InfoPageArgs {
   factory InfoPageArgs.privacy(AppConfig config) => InfoPageArgs(
     title: 'Privacy policy',
     body:
-        'Summary of what this MVP stores:\n\n'
-        '• Sign-in: Google via Firebase Authentication. The app never sees '
-        'or stores a password.\n'
-        '• Private profile (Cloud Firestore): your generated anonymous name, '
-        'age range and reading preferences. No real name, email, photo or '
-        'birthday is stored in the database.\n'
-        '• On this device: your likes, reactions, saves, views and the '
-        'confessions you post.\n'
-        '• Reports you submit (confession id, reason, optional details).\n\n'
-        'Your Google name and email are shown only on your private profile '
-        'screen. You can delete your account from Settings.',
+        'What Let\'s Spill stores, in short:\n\n'
+        '• Sign in: Google through Firebase Authentication. The app never '
+        'sees or stores a password.\n'
+        '• Your private profile (Cloud Firestore): your generated anonymous '
+        'name, age range, reading interests and app settings. No real name, '
+        'email, photo or birthday is stored in the database.\n'
+        '• What you post: the confession text, its category, whether it is '
+        'marked 18+, and the name it shows (Anonymous or your anonymous '
+        'name). A private link between the post and your account lets you '
+        'delete it; nobody else can see who wrote it.\n'
+        '• What you do: your likes, reactions, saves and qualified reads, so '
+        'counts stay accurate and your lists follow you between devices.\n'
+        '• Reports you submit: the confession id, reason and optional '
+        'details.\n'
+        '• Usage analytics (Google Analytics for Firebase): which screens '
+        'and features are used. Never what you write or search for, and '
+        'never used for ads. You can turn it off in Settings.\n\n'
+        'Your Google name and email are shown only in your own Settings. '
+        'Deleting your account removes your profile, posts, likes, '
+        'reactions, saves and reads.',
     link: config.privacyPolicyUrl,
     placeholderNote: config.privacyPolicyUrl == null
-        ? 'PLACEHOLDER: publish a full privacy policy and pass its URL with '
-              '--dart-define=PRIVACY_POLICY_URL=https://… before production.'
+        ? 'Before launch: publish the full privacy policy and pass its URL '
+              'with --dart-define=PRIVACY_POLICY_URL=https://your.site/privacy'
         : null,
   );
 
@@ -43,8 +52,8 @@ class InfoPageArgs {
         'support team.',
     link: config.supportContact,
     placeholderNote: config.supportContact == null
-        ? 'PLACEHOLDER: set a real support email/URL with '
-              '--dart-define=SUPPORT_CONTACT=… before production.'
+        ? 'Before launch: set a real support email or URL with '
+              '--dart-define=SUPPORT_CONTACT=support@your.site'
         : null,
   );
 

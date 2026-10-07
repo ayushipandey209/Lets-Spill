@@ -84,16 +84,26 @@ void main() {
       expect(hits.items.single.text, contains('grandmother'));
     });
 
-    test('trending ranks by engagement and recency', () async {
+    test('hot ranks by engagement and recency; top by likes', () async {
       final repo = confessionRepo(await createStore());
-      final page = await repo.fetchPage(
-        const FeedQuery(sort: FeedSort.trending),
+      final hot = await repo.fetchPage(
+        const FeedQuery(sort: FeedSort.hot),
         limit: 100,
       );
-      for (var i = 1; i < page.items.length; i++) {
+      for (var i = 1; i < hot.items.length; i++) {
         expect(
-          repo.trendingScore(page.items[i - 1]),
-          greaterThanOrEqualTo(repo.trendingScore(page.items[i])),
+          repo.hotScore(hot.items[i - 1]),
+          greaterThanOrEqualTo(repo.hotScore(hot.items[i])),
+        );
+      }
+      final top = await repo.fetchPage(
+        const FeedQuery(sort: FeedSort.top),
+        limit: 100,
+      );
+      for (var i = 1; i < top.items.length; i++) {
+        expect(
+          top.items[i - 1].likeCount,
+          greaterThanOrEqualTo(top.items[i].likeCount),
         );
       }
     });

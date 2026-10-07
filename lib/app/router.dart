@@ -3,19 +3,21 @@ import 'package:flutter/material.dart';
 import '../features/confession_detail/presentation/pages/confession_detail_page.dart';
 import '../features/confessions/domain/confession.dart';
 import '../features/create_confession/presentation/pages/create_confession_page.dart';
-import '../features/profile/presentation/pages/profile_page.dart';
+import '../features/feed/presentation/pages/category_feed_page.dart';
 import '../features/search/presentation/search_page.dart';
 import '../features/settings/presentation/pages/delete_account_page.dart';
 import '../features/settings/presentation/pages/guidelines_page.dart';
 import '../features/settings/presentation/pages/info_page.dart';
+import '../features/settings/presentation/pages/settings_page.dart';
 
-/// Named routes. Onboarding and sign-in aren't routes: the session gate in
-/// `app.dart` swaps them in and out.
+/// Named routes. Onboarding, sign-in and the home tabs aren't routes: the
+/// session gate in `app.dart` swaps them in and out.
 abstract final class AppRoutes {
   static const confession = '/confession';
   static const create = '/create';
-  static const profile = '/profile';
+  static const category = '/category';
   static const search = '/search';
+  static const settings = '/settings';
   static const guidelines = '/guidelines';
   static const deleteAccount = '/delete-account';
   static const info = '/info';
@@ -46,10 +48,14 @@ abstract final class AppRouter {
       case AppRoutes.create:
         page = const CreateConfessionPage();
         fullscreenDialog = true;
-      case AppRoutes.profile:
-        page = const ProfilePage();
+      case AppRoutes.category:
+        final args = settings.arguments;
+        if (args is String) page = CategoryFeedPage(categoryId: args);
       case AppRoutes.search:
-        page = const SearchPage();
+        final args = settings.arguments;
+        page = SearchPage(initialQuery: args is String ? args : null);
+      case AppRoutes.settings:
+        page = const SettingsPage();
       case AppRoutes.guidelines:
         page = const GuidelinesPage();
       case AppRoutes.deleteAccount:

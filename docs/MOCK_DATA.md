@@ -1,30 +1,31 @@
-# Confession content (bundled JSON)
+# Sample confessions
 
-Accounts and profiles are real (Firebase). **Confession content** comes from
-`assets/mock/` for now. All stories are fictional.
+`assets/mock/` holds the app's categories and 28 fictional sample
+confessions. No real people, schools or companies.
 
-| File | Contents |
+| File | Used for |
 |---|---|
-| `categories.json` | The six categories (`relationships`, `school`, `workplace`, `friendship`, `family`, `life`), each with a description (shown in onboarding) and an order. |
-| `confessions.json` | 28 confessions with these fields: `id` (`conf-001`…), `categoryId`, `text`, `createdAt` (ISO-8601 UTC), `likeCount`, `viewCount`, `reactionCounts` (`same`/`hugs`/`wow`/`oof`), `mature`, `authorDisplayName` ("Anonymous" or an `@handle`) and `status`. They contain no account identifiers. |
+| `categories.json` | The six categories (`relationships`, `school`, `workplace`, `friendship`, `family`, `life`) with descriptions and order. Shipped with the app; the rules hold the same list. |
+| `confessions.json` | Sample posts. Loaded into Firestore once with the seed script, and used by the tests' in-memory repository. |
 
-`"mature": true` marks adult themes such as affairs. These confessions are
-hidden from readers who chose the 13–17 age range.
+`"mature": true` marks adult themes such as affairs. These are hidden from
+readers aged 13 to 17.
 
-## How it loads
+## Loading them into Firestore
 
-`LocalContentStore` (`lib/core/data/local/local_content_store.dart`):
+```sh
+cd firebase/seed && npm install
+npm run seed -- --project <your-project-id>          # add
+npm run seed -- --project <your-project-id> --delete  # remove
+```
 
-1. Looks for saved state under `lets_spill.content.v2` in `shared_preferences`.
-2. On first run, seeds from `confessions.json`.
-3. Keeps each user's likes, reactions, saves, views and own posts under their
-   **Firebase uid**. Two accounts on the same device never see each other's
-   activity.
+The seed shifts the dates so the newest post is about an hour old and starts
+every counter at zero, so likes and views always match the real activity
+documents.
 
-## Editing the seed
+## Editing
 
-Edit the JSON and keep the `id`s unique and the `categoryId`s valid. Saved
-state takes precedence over the seed, so clear the app's storage (or
-reinstall) to see your edits. `flutter test test/data/local_content_test.dart`
-validates the file. Update `seedConfessionCount` and `seedMatureCount` in
-`test/helpers.dart` if you change the counts.
+Keep the `id`s unique and the `categoryId`s valid.
+`flutter test test/data/local_content_test.dart` validates the file. Update
+`seedConfessionCount` and `seedMatureCount` in `test/helpers.dart` if you
+change the counts.

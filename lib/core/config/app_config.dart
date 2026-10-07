@@ -2,12 +2,9 @@ import 'package:equatable/equatable.dart';
 
 /// Immutable, app-wide configuration.
 ///
-/// * **Accounts** are real: Google sign-in through Firebase Authentication,
-///   with the private profile (anonymous username, age range, reading
-///   preferences) stored in Cloud Firestore.
-/// * **Confession content** comes from the bundled JSON in `assets/mock/`
-///   for now. Likes, reactions, saves, views and the user's own posts are
-///   kept on the device, keyed by the Firebase user id.
+/// Accounts use Google sign-in through Firebase Authentication. Profiles,
+/// settings, confessions, likes, reactions, saves, views and reports are
+/// stored in Cloud Firestore (see `lib/core/data/firebase/firestore_paths.dart`).
 class AppConfig extends Equatable {
   const AppConfig({
     this.maxConfessionLength = 2000,
@@ -34,6 +31,7 @@ class AppConfig extends Equatable {
   }
 
   static const appName = "Let's Spill";
+  static const version = '1.0.0';
   static const tagline = 'Your secrets. Their stories.';
   static const shortDescription =
       'Read confessions, share secrets, and discover real-life stories.';
@@ -52,10 +50,10 @@ class AppConfig extends Equatable {
   /// How long a reader must stay on a confession before a view is counted.
   final Duration viewThreshold;
 
-  /// Small artificial delay on local content so loading states feel natural.
+  /// Artificial delay used only by the in-memory test repository.
   final Duration contentLatency;
 
-  /// Production links. `null` means "placeholder — must be set before launch".
+  /// Production links. `null` means "placeholder: set before launch".
   final String? privacyPolicyUrl;
   final String? communityGuidelinesUrl;
   final String? supportContact;

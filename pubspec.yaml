@@ -1,7 +1,7 @@
 name: let_s_spill
-description: "Let's Spill — Your secrets. Their stories. A text-only anonymous confession journal."
+description: "Let's Spill: Your secrets. Their stories. A text-only anonymous confession journal."
 publish_to: "none"
-version: 0.1.0+1
+version: 1.0.0+1
 
 environment:
   sdk: ^3.9.0
@@ -17,16 +17,17 @@ dependencies:
   bloc_concurrency: ^0.3.0
   equatable: ^2.0.7
 
-  # Firebase (official FlutterFire SDKs — no custom backend)
+  # Firebase (official FlutterFire SDKs, no custom backend)
   firebase_core: ^4.1.1
   firebase_auth: ^6.1.0
   cloud_firestore: ^6.0.2
+  firebase_analytics: ^12.0.0
   google_sign_in: ^7.2.0
 
   # Platform share sheet
   share_plus: ^12.0.0
 
-  # On-device persistence for likes, reactions, saves and own posts
+  # On-device copy of app settings (theme applies before sign-in)
   shared_preferences: ^2.5.3
 
 dev_dependencies:
@@ -36,6 +37,14 @@ dev_dependencies:
   mocktail: ^1.0.4
   fake_async: ^1.3.3
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# App icon. Regenerate with: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true

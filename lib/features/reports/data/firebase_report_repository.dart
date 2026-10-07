@@ -46,7 +46,7 @@ class FirebaseReportRepository implements ReportRepository {
   }) async {
     if (await hasReported(confessionId)) {
       throw const ValidationException(
-        "You've already reported this confession. Thanks — it's in the queue.",
+        "You've already reported this confession. Thanks, it's in the queue.",
       );
     }
     await guardFirebase(() async {

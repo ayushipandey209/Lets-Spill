@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/analytics/analytics.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/utils/ui_notice.dart';
 import '../../../auth/domain/auth_repository.dart';
@@ -34,17 +35,23 @@ class AccountDeletionState extends Equatable {
   List<Object?> get props => [confirmed, status, errorMessage];
 }
 
-/// Deletes, in order: confirm with Google → Firestore profile + username
-/// claim → on-device activity and own posts → the Firebase Auth account.
+/// Deletes, in order: confirm with Google, then posts and activity (with
+/// counters decremented), then the profile and username claim, then the
+/// Firebase Auth account. Activity goes first because the security rules
+/// check the profile while counters are updated.
 class AccountDeletionCubit extends Cubit<AccountDeletionState> {
   AccountDeletionCubit({
     required AuthRepository auth,
     required ProfileRepository profiles,
     required ConfessionRepository confessions,
+    Analytics analytics = const NoopAnalytics(),
   }) : _auth = auth,
        _profiles = profiles,
        _confessions = confessions,
+       _analytics = analytics,
        super(const AccountDeletionState());
+
+  final Analytics _analytics;
 
   final AuthRepository _auth;
   final ProfileRepository _profiles;
@@ -60,8 +67,10 @@ class AccountDeletionCubit extends Cubit<AccountDeletionState> {
     );
     try {
       await _auth.reauthenticate();
-      await _profiles.deleteProfile();
       await _confessions.clearUserData();
+      await _profiles.deleteProfile();
+      await _analytics.log(AnalyticsEvents.accountDeleted);
+      await _analytics.setUser(null);
       await _auth.deleteAccount();
       if (!isClosed) emit(state.copyWith(status: SubmitStatus.success));
     } on SignInCancelledException {

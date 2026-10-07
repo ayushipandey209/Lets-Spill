@@ -1,6 +1,6 @@
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:let_s_spill/core/data/local/local_content_store.dart';
+import '../fakes/local_content_store.dart';
 import 'package:let_s_spill/core/errors/app_exception.dart';
 import 'package:let_s_spill/features/confession_detail/presentation/bloc/confession_detail_cubit.dart';
 import 'package:let_s_spill/features/confessions/domain/confession.dart';
@@ -25,7 +25,13 @@ class SpyConfessionRepository implements ConfessionRepository {
     required String text,
     required String categoryId,
     required String displayName,
-  }) => inner.create(text: text, categoryId: categoryId, displayName: displayName);
+    bool mature = false,
+  }) => inner.create(
+    text: text,
+    categoryId: categoryId,
+    displayName: displayName,
+    mature: mature,
+  );
 
   @override
   Future<void> delete(String id) => inner.delete(id);
@@ -57,6 +63,12 @@ class SpyConfessionRepository implements ConfessionRepository {
 
   @override
   Future<bool> isLiked(String id) => inner.isLiked(id);
+
+  @override
+  Future<Set<String>> likedIds(Iterable<String> ids) => inner.likedIds(ids);
+
+  @override
+  Future<List<Confession>> fetchLiked() => inner.fetchLiked();
 
   @override
   Future<Reaction?> myReaction(String id) => inner.myReaction(id);

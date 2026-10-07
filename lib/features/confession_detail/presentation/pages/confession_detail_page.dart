@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_tokens.dart';
+import '../../../../core/analytics/analytics.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/services/share_service.dart';
 import '../../../../core/utils/formatters.dart';
@@ -10,6 +11,7 @@ import '../../../../core/widgets/common.dart';
 import '../../../categories/domain/category.dart';
 import '../../../confessions/domain/confession.dart';
 import '../../../confessions/domain/confession_repository.dart';
+import '../../../confessions/presentation/confession_actions.dart';
 import '../../../confessions/presentation/confession_widgets.dart';
 import '../../../reports/presentation/report_sheet.dart';
 import '../bloc/confession_detail_cubit.dart';
@@ -35,6 +37,7 @@ class ConfessionDetailPage extends StatelessWidget {
         confessionId: confessionId,
         initial: initial,
         viewThreshold: config.viewThreshold,
+        analytics: context.read<Analytics>(),
       )..load(),
       child: const ConfessionDetailView(),
     );
@@ -48,10 +51,10 @@ class ConfessionDetailView extends StatefulWidget {
   State<ConfessionDetailView> createState() => _ConfessionDetailViewState();
 }
 
-/// Bridges route visibility + app lifecycle into the cubit's view timer:
-/// * app paused/hidden → timer cancelled; resumed → restarts from zero;
-/// * another route pushed on top → cancelled; popped back → restarts;
-/// * this route disposed → cubit closed, timer cancelled.
+/// Bridges route visibility and app lifecycle into the cubit's view timer:
+/// * app paused or hidden: timer cancelled; resumed: restarts from zero;
+/// * another route pushed on top: cancelled; popped back: restarts;
+/// * this route disposed: cubit closed, timer cancelled.
 class _ConfessionDetailViewState extends State<ConfessionDetailView>
     with WidgetsBindingObserver {
   late final ConfessionDetailCubit _cubit;
@@ -130,6 +133,7 @@ class _ConfessionDetailViewState extends State<ConfessionDetailView>
             title: confession == null
                 ? null
                 : Text(categories.nameOf(confession.categoryId)),
+            centerTitle: false,
             actions: [
               if (confession != null)
                 IconButton(
@@ -186,8 +190,14 @@ class _ConfessionDetailViewState extends State<ConfessionDetailView>
               state: state,
               categories: categories,
               shareKey: _shareKey,
-              onLike: _cubit.toggleLike,
-              onReact: _cubit.react,
+              onLike: () {
+                tapFeedback(context);
+                _cubit.toggleLike();
+              },
+              onReact: (r) {
+                tapFeedback(context);
+                _cubit.react(r);
+              },
               onShare: () => _cubit.share(origin: _shareOrigin()),
               onReport: () => _report(context, confession!),
             ),
@@ -198,7 +208,11 @@ class _ConfessionDetailViewState extends State<ConfessionDetailView>
   }
 
   Future<void> _report(BuildContext context, Confession confession) async {
+    final analytics = context.read<Analytics>();
     final submitted = await showReportSheet(context, confessionId: confession.id);
+    if (submitted == true) {
+      analytics.log(AnalyticsEvents.report, {'confession_id': confession.id});
+    }
     if (submitted == true && context.mounted) {
       showMessage(
         context,
@@ -237,20 +251,50 @@ class _Body extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: AppSpacing.sm),
-            Eyebrow(
-              '${categories.nameOf(c.categoryId)} · ${c.authorDisplayName}'
-              '${c.mature ? ' · 18+' : ''}',
+            const SizedBox(height: AppSpacing.xs),
+            InkWell(
+              borderRadius: AppRadii.button,
+              onTap: () => Navigator.of(
+                context,
+              ).pushNamed(AppRoutes.category, arguments: c.categoryId),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
+                child: Row(
+                  children: [
+                    CategoryAvatar(categoryId: c.categoryId, size: 36),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            categories.nameOf(c.categoryId),
+                            style: context.text.titleSmall,
+                          ),
+                          Text(
+                            c.authorDisplayName,
+                            style: context.text.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (c.mature) const MatureTag(),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: AppSpacing.lg),
             Semantics(
               label: 'Confession text',
-              child: Text(
+              child: SelectableText(
                 c.text,
-                style: context.text.bodyLarge!.copyWith(fontSize: 19, height: 1.65),
+                style: context.text.bodyLarge!.copyWith(
+                  fontSize: 17,
+                  height: 1.62,
+                ),
               ),
             ),
-            const SizedBox(height: AppSpacing.xl),
+            const SizedBox(height: AppSpacing.lg),
             ConfessionMeta(confession: c, fullDate: true, showLikes: false),
             const SizedBox(height: AppSpacing.lg),
             const HairlineDivider(),
@@ -286,8 +330,8 @@ class _Body extends StatelessWidget {
             NoteBox(
               icon: Icons.shield_outlined,
               child: Text(
-                'Confessions are anonymous, unverified personal accounts — '
-                'not established facts. If this names or identifies a real '
+                'Confessions are anonymous, unverified personal accounts, not '
+                'established facts. If this names or identifies a real '
                 'person, school or company, or feels harmful, please report it.',
                 style: context.text.bodySmall!.copyWith(color: t.ink),
               ),
@@ -321,7 +365,7 @@ class _LikeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final fg = liked ? t.onInk : t.ink;
+    final fg = liked ? t.accent : t.ink;
     final label = Formatters.compactCount(count);
     return Semantics(
       button: true,
@@ -331,9 +375,9 @@ class _LikeButton extends StatelessWidget {
       child: AnimatedContainer(
         duration: AppMotion.fast,
         decoration: BoxDecoration(
-          color: liked ? t.ink : Colors.transparent,
+          color: liked ? t.accent.withValues(alpha: 0.12) : Colors.transparent,
           borderRadius: AppRadii.button,
-          border: Border.all(color: t.ink, width: 1.2),
+          border: Border.all(color: liked ? t.accent : t.ink, width: 1.2),
         ),
         child: Material(
           type: MaterialType.transparency,
@@ -341,7 +385,7 @@ class _LikeButton extends StatelessWidget {
             borderRadius: AppRadii.button,
             onTap: busy ? null : onPressed,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 52),
+              constraints: const BoxConstraints(minHeight: 48),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -359,7 +403,7 @@ class _LikeButton extends StatelessWidget {
                   const SizedBox(width: AppSpacing.xs),
                   Flexible(
                     child: Text(
-                      liked ? 'Liked · $label' : 'Like · $label',
+                      liked ? 'Liked  $label' : 'Like  $label',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: context.text.labelLarge!.copyWith(color: fg),
@@ -404,7 +448,7 @@ class _ReactionBar extends StatelessWidget {
                 key: ValueKey('reaction-${r.name}'),
                 duration: AppMotion.fast,
                 decoration: BoxDecoration(
-                  color: mine == r ? t.ink : t.background,
+                  color: mine == r ? t.ink : t.card,
                   borderRadius: AppRadii.button,
                   border: Border.all(color: mine == r ? t.ink : t.border),
                 ),

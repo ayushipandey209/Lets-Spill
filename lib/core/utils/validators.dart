@@ -14,7 +14,7 @@ abstract final class Validators {
   }) {
     final v = value?.trim() ?? '';
     if (v.isEmpty) return 'Write something before posting.';
-    if (v.length < min) return 'Add a little more — at least $min characters.';
+    if (v.length < min) return 'Add a little more: at least $min characters.';
     if (v.length > max) return 'Keep it under $max characters.';
     return null;
   }

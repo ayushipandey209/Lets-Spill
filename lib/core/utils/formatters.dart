@@ -25,7 +25,7 @@ abstract final class Formatters {
     return local.year == current.year ? base : '$base ${local.year}';
   }
 
-  /// 950 → "950", 1200 → "1.2K", 15300 → "15K", 2400000 → "2.4M".
+  /// 950 is "950", 1200 is "1.2K", 15300 is "15K", 2400000 is "2.4M".
   static String compactCount(int value) {
     if (value < 1000) return '$value';
     if (value < 1000000) return _compact(value / 1000, 'K');

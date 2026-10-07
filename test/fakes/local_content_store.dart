@@ -1,12 +1,12 @@
 import 'dart:convert';
 
-import '../../../features/confessions/domain/confession.dart';
-import '../../errors/app_exception.dart';
-import '../asset_loader.dart';
-import '../key_value_store.dart';
+import 'package:let_s_spill/core/data/asset_loader.dart';
+import 'package:let_s_spill/core/data/key_value_store.dart';
+import 'package:let_s_spill/core/errors/app_exception.dart';
+import 'package:let_s_spill/features/confessions/domain/confession.dart';
 
-/// Per-user activity kept on the device. Keyed by Firebase uid, so several
-/// accounts on one device never see each other's likes or saves.
+/// Test double: per-user activity kept in memory, keyed by uid, mirroring
+/// what Firestore stores under `users/{uid}` and `confessions/{id}/...`.
 class UserActivity {
   UserActivity({
     Set<String>? likes,
@@ -57,10 +57,8 @@ class UserActivity {
   };
 }
 
-/// In-memory content database seeded from `assets/mock/confessions.json` and
-/// persisted to device storage after every change.
-///
-/// Delete the [storageKey] entry (or call [reset]) to return to the seed.
+/// In-memory content database for tests, seeded from
+/// `assets/mock/confessions.json`.
 class LocalContentStore {
   LocalContentStore({
     required AssetLoader loader,

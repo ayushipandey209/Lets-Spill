@@ -5,17 +5,18 @@ import 'dart:ui' show Rect;
 import 'package:let_s_spill/app/app_services.dart';
 import 'package:let_s_spill/core/config/app_config.dart';
 import 'package:let_s_spill/core/data/key_value_store.dart';
-import 'package:let_s_spill/core/data/local/local_content_store.dart';
+import 'fakes/local_content_store.dart';
 import 'package:let_s_spill/core/errors/app_exception.dart';
 import 'package:let_s_spill/core/services/share_service.dart';
 import 'package:let_s_spill/features/auth/domain/app_user.dart';
 import 'package:let_s_spill/features/auth/domain/auth_repository.dart';
 import 'package:let_s_spill/features/categories/data/asset_category_repository.dart';
-import 'package:let_s_spill/features/confessions/data/local_confession_repository.dart';
+import 'fakes/local_confession_repository.dart';
 import 'package:let_s_spill/features/profile/domain/profile_repository.dart';
 import 'package:let_s_spill/features/profile/domain/user_profile.dart';
 import 'package:let_s_spill/features/reports/domain/report.dart';
 import 'package:let_s_spill/features/reports/domain/report_repository.dart';
+import 'package:let_s_spill/features/settings/domain/app_settings.dart';
 
 /// Reads bundled assets synchronously from disk (tests run from the package
 /// root), so loading works inside fake-async zones without real I/O.
@@ -43,7 +44,7 @@ const testUser = AppUser(
   email: 'alice@example.com',
 );
 
-/// In-memory stand-in for Google + Firebase Auth.
+/// In-memory stand-in for Google sign-in and Firebase Auth.
 class FakeAuthRepository implements AuthRepository {
   FakeAuthRepository({AppUser? signedIn}) : _user = signedIn;
 
@@ -143,6 +144,12 @@ class FakeProfileRepository implements ProfileRepository {
     );
     profiles[_uid] = updated;
     return updated;
+  }
+
+  @override
+  Future<void> updateSettings(AppSettings settings) async {
+    final p = profiles[_uid];
+    if (p != null) profiles[_uid] = p.copyWith(settings: settings);
   }
 
   @override

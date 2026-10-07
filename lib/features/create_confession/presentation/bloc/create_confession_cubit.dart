@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/analytics/analytics.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/utils/ui_notice.dart';
 import '../../../../core/utils/validators.dart';
@@ -18,6 +19,7 @@ class CreateConfessionState extends Equatable {
     this.created,
     this.showValidation = false,
     this.postAsHandle = false,
+    this.mature = false,
   });
 
   final String text;
@@ -36,6 +38,9 @@ class CreateConfessionState extends Equatable {
   /// Show the author's anonymous handle instead of "Anonymous".
   final bool postAsHandle;
 
+  /// Marked 18+ by the author (adults only).
+  final bool mature;
+
   /// Character count used for the counter and the length limit.
   int get length => text.trim().length;
 
@@ -52,6 +57,7 @@ class CreateConfessionState extends Equatable {
     Confession? created,
     bool? showValidation,
     bool? postAsHandle,
+    bool? mature,
   }) {
     return CreateConfessionState(
       text: text ?? this.text,
@@ -65,6 +71,7 @@ class CreateConfessionState extends Equatable {
       created: created ?? this.created,
       showValidation: showValidation ?? this.showValidation,
       postAsHandle: postAsHandle ?? this.postAsHandle,
+      mature: mature ?? this.mature,
     );
   }
 
@@ -79,6 +86,7 @@ class CreateConfessionState extends Equatable {
     created,
     showValidation,
     postAsHandle,
+    mature,
   ];
 }
 
@@ -88,11 +96,24 @@ class CreateConfessionCubit extends Cubit<CreateConfessionState> {
     required this.maxLength,
     required this.minLength,
     this.handle,
+    this.canMarkMature = false,
+    bool postAsHandle = false,
     String? initialCategoryId,
+    Analytics analytics = const NoopAnalytics(),
   }) : _repository = repository,
-       super(CreateConfessionState(categoryId: initialCategoryId));
+       _analytics = analytics,
+       super(
+         CreateConfessionState(
+           categoryId: initialCategoryId,
+           postAsHandle: postAsHandle && handle != null,
+         ),
+       );
 
   final ConfessionRepository _repository;
+  final Analytics _analytics;
+
+  /// Readers under 18 can't mark posts as 18+.
+  final bool canMarkMature;
   final int maxLength;
   final int minLength;
 
@@ -102,6 +123,11 @@ class CreateConfessionCubit extends Cubit<CreateConfessionState> {
   void setPostAsHandle(bool value) {
     if (handle == null) return;
     emit(state.copyWith(postAsHandle: value));
+  }
+
+  void setMature(bool value) {
+    if (!canMarkMature) return;
+    emit(state.copyWith(mature: value));
   }
 
   void textChanged(String value) {
@@ -158,7 +184,14 @@ class CreateConfessionCubit extends Cubit<CreateConfessionState> {
         displayName: state.postAsHandle && handle != null
             ? handle!
             : Confession.anonymousName,
+        mature: canMarkMature && state.mature,
       );
+      _analytics.log(AnalyticsEvents.createPost, {
+        'category': created.categoryId,
+        'identity': state.postAsHandle ? 'handle' : 'anonymous',
+        'mature': created.mature,
+        'length_bucket': _lengthBucket(created.text.length),
+      });
       if (!isClosed) {
         emit(state.copyWith(status: SubmitStatus.success, created: created));
       }
@@ -173,4 +206,11 @@ class CreateConfessionCubit extends Cubit<CreateConfessionState> {
       }
     }
   }
+
+  static String _lengthBucket(int n) => switch (n) {
+    < 100 => 'short',
+    < 400 => 'medium',
+    < 1000 => 'long',
+    _ => 'very_long',
+  };
 }

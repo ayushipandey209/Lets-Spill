@@ -2,7 +2,7 @@ import 'dart:math';
 
 /// Generates anonymous handles like "QuietComet27".
 ///
-/// Users can't type a username — they pick from these suggestions — so no
+/// Users can't type a username (they pick from these suggestions), so no
 /// real names, emails or phone numbers can end up as a public handle.
 class UsernameGenerator {
   UsernameGenerator([Random? random]) : _random = random ?? Random();

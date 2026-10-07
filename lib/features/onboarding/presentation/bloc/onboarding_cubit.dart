@@ -170,7 +170,7 @@ class OnboardingCubit extends Cubit<OnboardingState> {
               exclude: {...state.usernameOptions},
             ),
             username: () => null,
-            errorMessage: () => '$name is taken — here are fresh ones.',
+            errorMessage: () => '$name is taken. Here are some fresh ones.',
           ),
         );
         return;

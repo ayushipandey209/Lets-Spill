@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:let_s_spill/app/app.dart';
+import 'package:let_s_spill/features/confessions/presentation/confession_widgets.dart';
 import 'package:let_s_spill/features/onboarding/presentation/pages/onboarding_page.dart';
 
 import 'helpers.dart';
 
-/// End-to-end widget tests with fake Google auth + Firestore profile, and the
-/// real bundled JSON content.
+/// End-to-end widget tests with fake Google auth, an in-memory profile and
+/// confession store, and the bundled sample content.
 void main() {
   Future<TestHarness> boot(
     WidgetTester tester,
@@ -37,7 +38,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('signed out: intro → Google → tap-only onboarding → home', (
+  testWidgets('signed out: intro, Google, tap-only onboarding, home', (
     tester,
   ) async {
     final harness = await boot(tester, TestHarness());
@@ -46,7 +47,7 @@ void main() {
 
     await tapVisible(tester, find.byKey(const ValueKey('google-sign-in')));
 
-    // Step 1: anonymous username — choose, never type.
+    // Step 1: anonymous username. Choose, never type.
     expect(find.text('Pick your anonymous name'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
     final options = find.byType(ChoiceTile, skipOffstage: false);
@@ -78,23 +79,27 @@ void main() {
     // Saved to the (fake) database and landed on home.
     final saved = harness.profiles.profiles[testUser.uid]!;
     expect(saved.preferredCategoryIds, ['life', 'family']);
-    expect(find.text(saved.handle), findsOneWidget);
+    expect(find.textContaining(saved.handle), findsWidgets);
     expect(find.text('For you'), findsOneWidget);
+    expect(find.byKey(const ValueKey('nav-explore')), findsOneWidget);
   });
 
   testWidgets('home: featured, tabs, open, react and save', (tester) async {
     await boot(tester, TestHarness(signedIn: true, profile: adultProfile()));
 
-    expect(find.text('@QuietComet27'), findsOneWidget);
+    expect(find.textContaining('@QuietComet27'), findsWidgets);
     expect(find.textContaining('CONFESSION OF THE DAY'), findsOneWidget);
-    expect(find.text('Trending'), findsOneWidget);
+    expect(find.text('Hot'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('tab-latest')));
     await tester.pumpAndSettle();
     expect(find.textContaining('emotional affair'), findsOneWidget);
 
-    // First card is on screen; tap it directly (ensureVisible would tuck it
+    // The newest post is 18+, so it starts blurred: the first tap reveals
+    // it and the second opens it. Tap directly (ensureVisible would tuck it
     // under the pinned tabs header).
+    await tester.tap(find.text('18+  Tap to view').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.textContaining('emotional affair'));
     await tester.pumpAndSettle();
     expect(find.text('Share'), findsOneWidget);
@@ -128,7 +133,7 @@ void main() {
   testWidgets('create a confession with the anonymous handle', (tester) async {
     await boot(tester, TestHarness(signedIn: true, profile: adultProfile()));
 
-    await tester.tap(find.text('Spill'));
+    await tester.tap(find.byKey(const ValueKey('nav-spill')));
     await tester.pumpAndSettle();
     expect(find.text('New confession'), findsOneWidget);
 
@@ -152,7 +157,21 @@ void main() {
       TestHarness(signedIn: true, profile: adultProfile()),
       size: const Size(1280, 900),
     );
-    final text = tester.getSize(find.text('@QuietComet27'));
-    expect(text.width, lessThanOrEqualTo(700));
+    final card = tester.getSize(find.byType(ConfessionCard).first);
+    expect(card.width, lessThanOrEqualTo(700));
+  });
+
+  testWidgets('dark mode and settings', (tester) async {
+    await boot(tester, TestHarness(signedIn: true, profile: adultProfile()));
+    await tester.tap(find.byKey(const ValueKey('nav-profile')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('open-settings')));
+    await tester.pumpAndSettle();
+    expect(find.text('Settings'), findsOneWidget);
+
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    expect(app.themeMode, ThemeMode.dark);
   });
 }

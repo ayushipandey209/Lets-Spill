@@ -2,44 +2,89 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../app/router.dart';
+import '../../../../app/theme/app_theme.dart';
 import '../../../../app/theme/app_tokens.dart';
-import '../../../../core/config/app_config.dart';
-import '../../../../core/utils/ui_notice.dart';
+import '../../../../core/analytics/analytics.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/common.dart';
 import '../../../auth/presentation/session_cubit.dart';
 import '../../../categories/domain/category.dart';
 import '../../../confessions/domain/confession.dart';
 import '../../../confessions/domain/confession_repository.dart';
+import '../../../confessions/presentation/confession_actions.dart';
 import '../../../confessions/presentation/confession_widgets.dart';
-import '../../../settings/presentation/pages/info_page.dart';
-import '../../domain/profile_repository.dart';
+import '../../../settings/domain/app_settings.dart';
+import '../../../settings/presentation/settings_cubit.dart';
+import '../../domain/user_profile.dart';
 import '../bloc/profile_cubit.dart';
 
-/// Private profile & settings. The Google name and email appear only here.
-class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key});
+/// "You" tab: anonymous identity, stats, and your Posts, Saved and Liked.
+class ProfileTab extends StatelessWidget {
+  const ProfileTab({super.key, this.reselect, this.active = true});
+
+  final ValueNotifier<int>? reselect;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
-    final session = context.read<SessionCubit>();
-    final profile = session.state.profile;
-    if (profile == null) {
-      return Scaffold(appBar: AppBar(), body: const SizedBox.shrink());
-    }
+    final profile = context.read<SessionCubit>().state.profile;
+    if (profile == null) return const SizedBox.shrink();
     return BlocProvider(
       create: (context) => ProfileCubit(
         profile: profile,
-        profileRepository: context.read<ProfileRepository>(),
         confessionRepository: context.read<ConfessionRepository>(),
-        onProfileUpdated: session.profileUpdated,
+        analytics: context.read<Analytics>(),
       )..load(),
-      child: const ProfileView(),
+      child: BlocListener<SessionCubit, SessionState>(
+        listenWhen: (p, c) => p.profile != c.profile && c.profile != null,
+        listener: (context, state) =>
+            context.read<ProfileCubit>().profileChanged(state.profile!),
+        child: ProfileView(reselect: reselect, active: active),
+      ),
     );
   }
 }
 
-class ProfileView extends StatelessWidget {
-  const ProfileView({super.key});
+class ProfileView extends StatefulWidget {
+  const ProfileView({super.key, this.reselect, this.active = true});
+
+  final ValueNotifier<int>? reselect;
+  final bool active;
+
+  @override
+  State<ProfileView> createState() => _ProfileViewState();
+}
+
+class _ProfileViewState extends State<ProfileView> {
+  final _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.reselect?.addListener(_onReselect);
+  }
+
+  @override
+  void didUpdateWidget(ProfileView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Refresh counts when the tab is opened again.
+    if (widget.active && !oldWidget.active) {
+      context.read<ProfileCubit>().load();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.reselect?.removeListener(_onReselect);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _onReselect() {
+    if (widget.active && _scroll.hasClients) {
+      _scroll.animateTo(0, duration: AppMotion.slow, curve: AppMotion.curve);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,8 +93,24 @@ class ProfileView extends StatelessWidget {
       listener: (context, state) => showNotice(context, state.notice!),
       builder: (context, state) {
         return Scaffold(
-          appBar: AppBar(title: const Text('You')),
-          body: _ProfileBody(state: state),
+          appBar: AppBar(
+            title: const Text('You'),
+            actions: [
+              IconButton(
+                key: const ValueKey('open-settings'),
+                tooltip: 'Settings',
+                onPressed: () =>
+                    Navigator.of(context).pushNamed(AppRoutes.settings),
+                icon: const Icon(Icons.settings_outlined),
+              ),
+            ],
+          ),
+          body: RefreshIndicator(
+            color: context.tokens.ink,
+            backgroundColor: context.tokens.card,
+            onRefresh: context.read<ProfileCubit>().load,
+            child: _ProfileBody(state: state, controller: _scroll),
+          ),
         );
       },
     );
@@ -57,139 +118,42 @@ class ProfileView extends StatelessWidget {
 }
 
 class _ProfileBody extends StatelessWidget {
-  const _ProfileBody({required this.state});
+  const _ProfileBody({required this.state, required this.controller});
+
   final ProfileState state;
+  final ScrollController controller;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final profile = state.profile;
-    final user = context.select((SessionCubit c) => c.state.user);
     final categories = context.read<CategoryCatalog>();
+    final settings = context.watch<SettingsCubit>().state;
     final cubit = context.read<ProfileCubit>();
-    final list = state.section == ProfileSection.mine
-        ? state.myConfessions
-        : state.saved;
+    final list = state.current;
+    final padding = responsiveHorizontalPadding(context, side: AppSpacing.sm);
 
     return ListView(
-      padding: responsiveHorizontalPadding(
-        context,
-      ).copyWith(top: AppSpacing.sm, bottom: AppSpacing.xxl),
+      controller: controller,
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: padding.copyWith(top: AppSpacing.xs, bottom: AppSpacing.xxl),
       children: [
-        // --- Identity ------------------------------------------------------
-        Container(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          decoration: BoxDecoration(
-            color: t.ink,
-            borderRadius: AppRadii.card,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.masks_outlined, color: t.onInk, size: 20),
-                  const SizedBox(width: AppSpacing.xs),
-                  Eyebrow(
-                    'Your anonymous name',
-                    color: t.onInk.withValues(alpha: 0.7),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                profile.handle,
-                style: context.text.headlineMedium!.copyWith(color: t.onInk),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Wrap(
-                spacing: AppSpacing.xs,
-                runSpacing: AppSpacing.xs,
-                children: [
-                  _InvertedPill('Age ${profile.ageRange.label}'),
-                  _InvertedPill('${state.myConfessions.length} posted'),
-                  _InvertedPill('${state.saved.length} saved'),
-                ],
-              ),
-            ],
-          ),
-        ),
+        _IdentityCard(state: state),
         const SizedBox(height: AppSpacing.md),
-        if (user != null)
-          NoteBox(
-            icon: Icons.lock_outline,
-            child: Text(
-              'Signed in with Google as ${user.displayName.isEmpty ? user.email : '${user.displayName} · ${user.email}'}. '
-              'Only you can see this — it never appears on confessions.',
-            ),
-          ),
-        const SizedBox(height: AppSpacing.xl),
-
-        // --- Preferences ---------------------------------------------------
-        const SectionTitle(
-          'What you like to read',
-          subtitle: 'Shapes your "For you" feed and Confession of the Day.',
+        _SectionTabs(
+          selected: state.section,
+          counts: {
+            ProfileSection.mine: state.myConfessions.length,
+            ProfileSection.saved: state.saved.length,
+            ProfileSection.liked: state.liked.length,
+          },
+          onSelected: cubit.selectSection,
         ),
-        const SizedBox(height: AppSpacing.md),
-        Wrap(
-          spacing: AppSpacing.xs,
-          runSpacing: AppSpacing.xs,
-          children: [
-            for (final c in categories.categories)
-              SelectableCategoryChip(
-                key: ValueKey('pref-${c.id}'),
-                label: c.name,
-                showCheck: true,
-                selected: state.draftCategoryIds.contains(c.id),
-                onTap: () => cubit.toggleCategory(c.id),
-              ),
-          ],
-        ),
-        AnimatedSize(
-          duration: AppMotion.fast,
-          child: state.hasUnsavedPreferences ||
-                  state.prefsStatus == SubmitStatus.submitting
-              ? Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.md),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: PrimaryButton(
-                      label: 'Save preferences',
-                      expand: false,
-                      busy: state.prefsStatus == SubmitStatus.submitting,
-                      onPressed: cubit.savePreferences,
-                    ),
-                  ),
-                )
-              : const SizedBox(width: double.infinity),
-        ),
-        const SizedBox(height: AppSpacing.xl),
-
-        // --- Your confessions / Saved ---------------------------------------
-        Wrap(
-          spacing: AppSpacing.xs,
-          runSpacing: AppSpacing.xs,
-          children: [
-            SelectableCategoryChip(
-              key: const ValueKey('section-mine'),
-              label: 'Your confessions',
-              selected: state.section == ProfileSection.mine,
-              onTap: () => cubit.selectSection(ProfileSection.mine),
-            ),
-            SelectableCategoryChip(
-              key: const ValueKey('section-saved'),
-              label: 'Saved',
-              selected: state.section == ProfileSection.saved,
-              onTap: () => cubit.selectSection(ProfileSection.saved),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        if (state.status == ProfileStatus.loading)
-          const Padding(
-            padding: EdgeInsets.all(AppSpacing.lg),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-          )
+        const SizedBox(height: AppSpacing.sm),
+        if (state.status == ProfileStatus.loading && list.isEmpty)
+          for (var i = 0; i < 2; i++) ...[
+            const ConfessionCardSkeleton(),
+            const SizedBox(height: AppSpacing.sm),
+          ]
         else if (state.status == ProfileStatus.failure)
           StatusMessage(
             icon: Icons.cloud_off_outlined,
@@ -199,54 +163,60 @@ class _ProfileBody extends StatelessWidget {
             onAction: cubit.load,
           )
         else if (list.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-            child: Text(
-              state.section == ProfileSection.mine
-                  ? "You haven't spilled anything yet."
-                  : 'Tap the bookmark on any confession to save it here.',
-              style: context.text.bodyMedium!.copyWith(color: t.inkMuted),
-            ),
-          )
+          _EmptySection(section: state.section)
         else
           for (final c in list) ...[
             ConfessionCard(
               key: ValueKey('${state.section.name}-${c.id}'),
               confession: c,
               categories: categories,
+              compact: settings.feedLayout == FeedLayout.compact,
               maxLines: 4,
-              onTap: () => Navigator.of(context).pushNamed(
-                AppRoutes.confession,
-                arguments: ConfessionRouteArgs(id: c.id, initial: c),
+              blurMature: settings.blurMature,
+              onTap: () => openConfession(
+                context,
+                c,
+                source: 'profile_${state.section.name}',
               ),
-              trailing: state.section == ProfileSection.mine
-                  ? (state.deletingIds.contains(c.id)
-                        ? const SizedBox(
+              trailing: switch (state.section) {
+                ProfileSection.mine =>
+                  state.deletingIds.contains(c.id)
+                      ? const Padding(
+                          padding: EdgeInsets.all(AppSpacing.xs),
+                          child: SizedBox(
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : IconButton(
-                            tooltip: 'Delete this confession',
-                            visualDensity: VisualDensity.compact,
-                            icon: const Icon(Icons.delete_outline, size: 20),
-                            onPressed: () => _confirmDelete(context, c),
-                          ))
-                  : IconButton(
-                      tooltip: 'Remove from saved',
-                      visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.bookmark, size: 20),
-                      onPressed: () => cubit.unsave(c.id),
-                    ),
+                          ),
+                        )
+                      : CardAction(
+                          icon: Icons.delete_outline,
+                          tooltip: 'Delete this confession',
+                          onPressed: () => _confirmDelete(context, c),
+                        ),
+                ProfileSection.saved => CardAction(
+                  icon: Icons.bookmark,
+                  tooltip: 'Remove from saved',
+                  active: true,
+                  onPressed: () => cubit.unsave(c.id),
+                ),
+                ProfileSection.liked => null,
+              },
             ),
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: AppSpacing.sm),
           ],
-        const SizedBox(height: AppSpacing.lg),
-
-        // --- Settings ------------------------------------------------------
-        const SectionTitle('Settings & support'),
-        const SizedBox(height: AppSpacing.sm),
-        const _SettingsList(),
+        if (state.status != ProfileStatus.failure && list.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: Center(
+              child: Text(
+                state.section == ProfileSection.mine
+                    ? 'Only you can see which posts are yours.'
+                    : 'Only you can see this list.',
+                style: context.text.bodySmall!.copyWith(color: t.inkMuted),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -258,8 +228,8 @@ class _ProfileBody extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: const Text('Delete this confession?'),
         content: const Text(
-          'It will be removed from the feed for everyone. This cannot be '
-          'undone.',
+          'It will be removed for everyone, along with its likes, reactions '
+          'and views. This cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -267,6 +237,10 @@ class _ProfileBody extends StatelessWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: context.tokens.error,
+              foregroundColor: context.tokens.onInk,
+            ),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete'),
           ),
@@ -277,99 +251,203 @@ class _ProfileBody extends StatelessWidget {
   }
 }
 
-class _InvertedPill extends StatelessWidget {
-  const _InvertedPill(this.text);
-  final String text;
+class _IdentityCard extends StatelessWidget {
+  const _IdentityCard({required this.state});
+  final ProfileState state;
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final UserProfile profile = state.profile;
+    final joined = profile.createdAt;
+    final initial = profile.username.isEmpty
+        ? '?'
+        : profile.username[0].toUpperCase();
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadii.pill),
-        border: Border.all(color: t.onInk.withValues(alpha: 0.35)),
-      ),
-      child: Text(
-        text,
-        style: context.text.labelMedium!.copyWith(color: t.onInk),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(color: t.ink, borderRadius: AppRadii.card),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: t.accent,
+                ),
+                child: Text(
+                  initial,
+                  style: context.text.headlineSmall!
+                      .copyWith(color: t.onInk)
+                      .withWeight(800),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      profile.handle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.text.headlineSmall!.copyWith(
+                        color: t.onInk,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      [
+                        if (joined != null)
+                          'Joined ${_months[joined.month - 1]} ${joined.year}',
+                        'Age ${profile.ageRange.label}',
+                      ].join('  ·  '),
+                      style: context.text.bodySmall!.copyWith(
+                        color: t.onInk.withValues(alpha: 0.72),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              _Stat(label: 'Karma', value: state.karma),
+              _Stat(label: 'Posts', value: state.myConfessions.length),
+              _Stat(label: 'Reads', value: state.reads),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _SettingsList extends StatelessWidget {
-  const _SettingsList();
+class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.value});
+  final String label;
+  final int value;
 
   @override
   Widget build(BuildContext context) {
-    final config = context.read<AppConfig>();
     final t = context.tokens;
-
-    Widget tile({
-      required IconData icon,
-      required String title,
-      String? subtitle,
-      required VoidCallback onTap,
-      Color? color,
-    }) {
-      return ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(icon, color: color),
-        title: Text(
-          title,
-          style: color == null
-              ? null
-              : context.text.titleMedium!.copyWith(color: color),
+    return Expanded(
+      child: Semantics(
+        label: '$label: $value',
+        excludeSemantics: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              Formatters.compactCount(value),
+              style: context.text.titleLarge!.copyWith(color: t.onInk),
+            ),
+            Text(
+              label,
+              style: context.text.labelMedium!.copyWith(
+                color: t.onInk.withValues(alpha: 0.72),
+              ),
+            ),
+          ],
         ),
-        subtitle: subtitle == null ? null : Text(subtitle),
-        trailing: Icon(Icons.chevron_right, color: t.inkMuted),
-        onTap: onTap,
-      );
-    }
-
-    void openInfo(InfoPageArgs args) =>
-        Navigator.of(context).pushNamed(AppRoutes.info, arguments: args);
-
-    return Column(
-      children: [
-        tile(
-          icon: Icons.menu_book_outlined,
-          title: 'Community guidelines',
-          onTap: () => Navigator.of(context).pushNamed(AppRoutes.guidelines),
-        ),
-        const HairlineDivider(),
-        tile(
-          icon: Icons.privacy_tip_outlined,
-          title: 'Privacy policy',
-          subtitle: config.privacyPolicyUrl == null
-              ? 'Placeholder — add a real URL before launch'
-              : null,
-          onTap: () => openInfo(InfoPageArgs.privacy(config)),
-        ),
-        const HairlineDivider(),
-        tile(
-          icon: Icons.support_agent_outlined,
-          title: 'Contact & report support',
-          subtitle: config.supportContact == null
-              ? 'Placeholder — add real contact details before launch'
-              : null,
-          onTap: () => openInfo(InfoPageArgs.support(config)),
-        ),
-        const HairlineDivider(),
-        tile(
-          icon: Icons.logout,
-          title: 'Sign out',
-          onTap: () => context.read<SessionCubit>().signOut(),
-        ),
-        const HairlineDivider(),
-        tile(
-          icon: Icons.delete_forever_outlined,
-          title: 'Delete account',
-          color: t.error,
-          onTap: () => Navigator.of(context).pushNamed(AppRoutes.deleteAccount),
-        ),
-      ],
+      ),
     );
+  }
+}
+
+class _SectionTabs extends StatelessWidget {
+  const _SectionTabs({
+    required this.selected,
+    required this.counts,
+    required this.onSelected,
+  });
+
+  final ProfileSection selected;
+  final Map<ProfileSection, int> counts;
+  final ValueChanged<ProfileSection> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+      ),
+      child: Row(
+        children: [
+          for (final s in ProfileSection.values)
+            Expanded(
+              child: Semantics(
+                selected: s == selected,
+                button: true,
+                child: GestureDetector(
+                  key: ValueKey('section-${s.name}'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onSelected(s),
+                  child: AnimatedContainer(
+                    duration: AppMotion.fast,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: s == selected ? t.card : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                      border: s == selected
+                          ? Border.all(color: t.border)
+                          : null,
+                    ),
+                    child: Text(
+                      '${s.label}  ${counts[s] ?? 0}',
+                      maxLines: 1,
+                      style: context.text.labelMedium!.copyWith(
+                        color: s == selected ? t.ink : t.inkMuted,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptySection extends StatelessWidget {
+  const _EmptySection({required this.section});
+  final ProfileSection section;
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, title, message) = switch (section) {
+      ProfileSection.mine => (
+        Icons.edit_note_outlined,
+        "You haven't spilled anything yet",
+        'Tap Spill below to write your first confession.',
+      ),
+      ProfileSection.saved => (
+        Icons.bookmark_border,
+        'Nothing saved yet',
+        'Tap the bookmark on any confession to keep it here.',
+      ),
+      ProfileSection.liked => (
+        Icons.favorite_border,
+        'No likes yet',
+        'Confessions you like will show up here.',
+      ),
+    };
+    return StatusMessage(icon: icon, title: title, message: message);
   }
 }

@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-/// The signed-in Google account. Private — never rendered on public content.
+/// The signed-in Google account. Private, never rendered on public content.
 class AppUser extends Equatable {
   const AppUser({
     required this.uid,
@@ -11,7 +11,7 @@ class AppUser extends Equatable {
   /// Stable Firebase Auth UID.
   final String uid;
 
-  /// Google account name and email — shown only on the private profile.
+  /// Google account name and email, shown only on the private profile.
   final String displayName;
   final String email;
 

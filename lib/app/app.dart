@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../core/analytics/analytics.dart';
 import '../core/config/app_config.dart';
+import '../core/data/key_value_store.dart';
 import '../core/services/share_service.dart';
 import '../core/widgets/common.dart';
 import '../features/auth/domain/auth_repository.dart';
 import '../features/auth/presentation/session_cubit.dart';
 import '../features/categories/domain/category.dart';
 import '../features/confessions/domain/confession_repository.dart';
-import '../features/feed/presentation/pages/home_page.dart';
+import '../features/home/home_shell.dart';
 import '../features/onboarding/presentation/pages/intro_page.dart';
 import '../features/onboarding/presentation/pages/onboarding_page.dart';
 import '../features/profile/domain/profile_repository.dart';
 import '../features/reports/domain/report_repository.dart';
+import '../features/settings/domain/app_settings.dart';
+import '../features/settings/presentation/settings_cubit.dart';
 import 'app_services.dart';
 import 'init/app_init_cubit.dart';
 import 'init/splash_page.dart';
@@ -25,24 +29,60 @@ class LetsSpillApp extends StatelessWidget {
     super.key,
     required this.config,
     required this.createServices,
+    this.deviceStore,
     this.minimumSplash = const Duration(milliseconds: 700),
   });
 
   final AppConfig config;
   final ServicesFactory createServices;
+
+  /// Where settings are kept on this device. Defaults to memory (tests).
+  final KeyValueStore? deviceStore;
   final Duration minimumSplash;
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => AppInitCubit(
-        config: config,
-        createServices: createServices,
-        minimumSplash: minimumSplash,
-      )..initialize(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => AppInitCubit(
+            config: config,
+            createServices: createServices,
+            minimumSplash: minimumSplash,
+          )..initialize(),
+        ),
+        BlocProvider(
+          create: (_) =>
+              SettingsCubit(store: deviceStore ?? InMemoryKeyValueStore())
+                ..load(),
+        ),
+      ],
       child: const _AppView(),
     );
   }
+}
+
+/// Forwards to the real analytics once services are ready, so the route
+/// observer can be created together with the navigator.
+class _DeferredAnalytics implements Analytics {
+  Analytics target = const NoopAnalytics();
+
+  @override
+  Future<void> log(String event, [Map<String, Object> params = const {}]) =>
+      target.log(event, params);
+
+  @override
+  Future<void> screen(String name) => target.screen(name);
+
+  @override
+  Future<void> setUser(String? uid) => target.setUser(uid);
+
+  @override
+  Future<void> setUserProperty(String name, String? value) =>
+      target.setUserProperty(name, value);
+
+  @override
+  Future<void> setEnabled(bool enabled) => target.setEnabled(enabled);
 }
 
 class _AppView extends StatefulWidget {
@@ -54,36 +94,72 @@ class _AppView extends StatefulWidget {
 
 class _AppViewState extends State<_AppView> {
   final _navigatorKey = GlobalKey<NavigatorState>();
-  final _theme = AppTheme.light();
+  final _lightTheme = AppTheme.light();
+  final _darkTheme = AppTheme.dark();
+  final _analytics = _DeferredAnalytics();
+  late final _routeObserver = AnalyticsRouteObserver(_analytics);
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsCubit>().state;
     return MaterialApp(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
-      theme: _theme,
-      themeMode: ThemeMode.light,
+      theme: _lightTheme,
+      darkTheme: _darkTheme,
+      themeMode: settings.theme.themeMode,
+      themeAnimationDuration: settings.reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 250),
       navigatorKey: _navigatorKey,
+      navigatorObservers: [_routeObserver],
       onGenerateRoute: AppRouter.onGenerateRoute,
       onUnknownRoute: AppRouter.onUnknownRoute,
       home: const _SessionGate(),
       // Until services are ready the splash replaces the navigator. Once
-      // ready, providers sit *above* the navigator so every route sees them.
+      // ready, providers sit above the navigator so every route sees them.
       builder: (context, child) {
-        return BlocBuilder<AppInitCubit, AppInitState>(
-          builder: (context, state) {
-            final services = state.services;
-            if (state.status != AppInitStatus.ready || services == null) {
-              return SplashPage(state: state);
-            }
-            return _ServicesScope(
-              services: services,
-              navigatorKey: _navigatorKey,
-              child: child ?? const SizedBox.shrink(),
-            );
-          },
+        return _ReadingPreferences(
+          settings: settings,
+          child: BlocBuilder<AppInitCubit, AppInitState>(
+            builder: (context, state) {
+              final services = state.services;
+              if (state.status != AppInitStatus.ready || services == null) {
+                return SplashPage(state: state);
+              }
+              _analytics.target = services.analytics;
+              return _ServicesScope(
+                services: services,
+                navigatorKey: _navigatorKey,
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
+          ),
         );
       },
+    );
+  }
+}
+
+/// Applies the text size and reduce motion settings on top of the device's
+/// own accessibility settings.
+class _ReadingPreferences extends StatelessWidget {
+  const _ReadingPreferences({required this.settings, required this.child});
+
+  final AppSettings settings;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    final deviceScale = mq.textScaler.scale(14) / 14;
+    final scale = (deviceScale * settings.textSize.scale).clamp(0.8, 2.0);
+    return MediaQuery(
+      data: mq.copyWith(
+        textScaler: TextScaler.linear(scale),
+        disableAnimations: mq.disableAnimations || settings.reduceMotion,
+      ),
+      child: child,
     );
   }
 }
@@ -113,23 +189,93 @@ class _ServicesScope extends StatelessWidget {
         RepositoryProvider<ReportRepository>.value(value: services.reports),
         RepositoryProvider<CategoryCatalog>.value(value: services.categories),
         RepositoryProvider<ShareService>.value(value: services.share),
+        RepositoryProvider<Analytics>.value(value: services.analytics),
       ],
       child: BlocProvider(
         create: (_) =>
             SessionCubit(auth: services.auth, profiles: services.profiles),
-        child: BlocListener<SessionCubit, SessionState>(
-          listenWhen: (prev, curr) =>
-              prev.status != curr.status &&
-              curr.status != SessionStatus.loadingProfile,
-          // When the session changes stage, drop pushed routes so the gate
-          // is on top (e.g. after sign-out or account deletion).
-          listener: (context, state) {
-            navigatorKey.currentState?.popUntil((route) => route.isFirst);
-          },
+        child: MultiBlocListener(
+          listeners: [
+            BlocListener<SessionCubit, SessionState>(
+              listenWhen: (prev, curr) =>
+                  prev.status != curr.status &&
+                  curr.status != SessionStatus.loadingProfile,
+              // When the session changes stage, drop pushed routes so the
+              // gate is on top (e.g. after sign-out or account deletion).
+              listener: (context, state) {
+                navigatorKey.currentState?.popUntil((route) => route.isFirst);
+              },
+            ),
+            BlocListener<SessionCubit, SessionState>(
+              listenWhen: (prev, curr) =>
+                  prev.status != curr.status ||
+                  prev.profile?.uid != curr.profile?.uid,
+              listener: (context, state) => _syncAccount(context, state),
+            ),
+            BlocListener<SettingsCubit, AppSettings>(
+              listenWhen: (prev, curr) => prev != curr,
+              listener: (context, settings) =>
+                  _applySettingsToAnalytics(settings),
+            ),
+          ],
           child: child,
         ),
       ),
     );
+  }
+
+  /// Keeps analytics identity and synced settings in step with the session.
+  void _syncAccount(BuildContext context, SessionState state) {
+    final analytics = services.analytics;
+    final settingsCubit = context.read<SettingsCubit>();
+    switch (state.status) {
+      case SessionStatus.signedOut:
+        settingsCubit.remoteSaver = null;
+        analytics
+          ..setUser(null)
+          ..setUserProperty(AnalyticsProperties.ageRange, null)
+          ..screen('intro');
+      case SessionStatus.needsOnboarding:
+        analytics
+          ..setUser(state.user?.uid)
+          ..screen('onboarding');
+      case SessionStatus.ready:
+        final profile = state.profile!;
+        analytics
+          ..setUser(profile.uid)
+          ..setUserProperty(
+            AnalyticsProperties.ageRange,
+            profile.ageRange.name,
+          )
+          ..setUserProperty(
+            AnalyticsProperties.categoriesCount,
+            '${profile.preferredCategoryIds.length}',
+          );
+        settingsCubit.remoteSaver = services.profiles.updateSettings;
+        final remote = profile.settings;
+        if (remote != null) {
+          settingsCubit.adoptRemote(remote);
+        } else {
+          // First sign-in on this account: keep what was chosen on device.
+          services.profiles.updateSettings(settingsCubit.state).catchError(
+            (Object _) {},
+          );
+        }
+        _applySettingsToAnalytics(settingsCubit.state);
+      case SessionStatus.unknown:
+      case SessionStatus.loadingProfile:
+      case SessionStatus.failure:
+        break;
+    }
+  }
+
+  void _applySettingsToAnalytics(AppSettings s) {
+    final analytics = services.analytics;
+    analytics
+      ..setEnabled(s.analyticsEnabled)
+      ..setUserProperty(AnalyticsProperties.theme, s.theme.name)
+      ..setUserProperty(AnalyticsProperties.textSize, s.textSize.name)
+      ..setUserProperty(AnalyticsProperties.feedLayout, s.feedLayout.name);
   }
 }
 
@@ -149,7 +295,7 @@ class _SessionGate extends StatelessWidget {
             const SplashPage(state: AppInitState.loading()),
           SessionStatus.signedOut => const IntroPage(),
           SessionStatus.needsOnboarding => const OnboardingPage(),
-          SessionStatus.ready => HomePage(key: ValueKey(state.profile!.uid)),
+          SessionStatus.ready => HomeShell(key: ValueKey(state.profile!.uid)),
           SessionStatus.failure => Scaffold(
             body: Center(
               child: StatusMessage(

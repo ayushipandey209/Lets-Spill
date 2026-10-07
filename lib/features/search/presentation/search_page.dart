@@ -4,15 +4,18 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../app/router.dart';
 import '../../../app/theme/app_tokens.dart';
+import '../../../core/analytics/analytics.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/widgets/common.dart';
 import '../../auth/presentation/session_cubit.dart';
 import '../../categories/domain/category.dart';
 import '../../confessions/domain/confession.dart';
 import '../../confessions/domain/confession_repository.dart';
+import '../../confessions/presentation/confession_actions.dart';
 import '../../confessions/presentation/confession_widgets.dart';
+import '../../settings/domain/app_settings.dart';
+import '../../settings/presentation/settings_cubit.dart';
 
 enum SearchStatus { idle, loading, done, failure }
 
@@ -38,12 +41,15 @@ class SearchCubit extends Cubit<SearchState> {
   SearchCubit({
     required ConfessionRepository repository,
     required this.includeMature,
-    this.debounce = const Duration(milliseconds: 300),
+    this.debounce = const Duration(milliseconds: 350),
     this.limit = 30,
+    Analytics analytics = const NoopAnalytics(),
   }) : _repository = repository,
+       _analytics = analytics,
        super(const SearchState());
 
   final ConfessionRepository _repository;
+  final Analytics _analytics;
   final bool includeMature;
   final Duration debounce;
   final int limit;
@@ -70,6 +76,11 @@ class SearchCubit extends Cubit<SearchState> {
         limit: limit,
       );
       if (isClosed || generation != _generation) return;
+      // Only the shape of the search is logged, never the words.
+      _analytics.log(AnalyticsEvents.search, {
+        'words': query.trim().split(RegExp(r'\s+')).length,
+        'results': page.items.length,
+      });
       emit(
         SearchState(query: query, status: SearchStatus.done, results: page.items),
       );
@@ -93,23 +104,29 @@ class SearchCubit extends Cubit<SearchState> {
 }
 
 class SearchPage extends StatelessWidget {
-  const SearchPage({super.key});
+  const SearchPage({super.key, this.initialQuery});
+
+  final String? initialQuery;
 
   @override
   Widget build(BuildContext context) {
     final profile = context.read<SessionCubit>().state.profile;
+    final settings = context.read<SettingsCubit>().state;
     return BlocProvider(
       create: (context) => SearchCubit(
         repository: context.read<ConfessionRepository>(),
-        includeMature: profile?.canSeeMature ?? false,
+        includeMature: (profile?.canSeeMature ?? false) && settings.showMature,
+        analytics: context.read<Analytics>(),
       ),
-      child: const _SearchView(),
+      child: _SearchView(initialQuery: initialQuery),
     );
   }
 }
 
 class _SearchView extends StatefulWidget {
-  const _SearchView();
+  const _SearchView({this.initialQuery});
+
+  final String? initialQuery;
 
   @override
   State<_SearchView> createState() => _SearchViewState();
@@ -121,6 +138,17 @@ class _SearchViewState extends State<_SearchView> {
   static const _suggestions = [
     'secret', 'boss', 'exam', 'ex', 'mom', 'friend', 'cheated', 'quit',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    final q = widget.initialQuery;
+    if (q != null && q.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _use(q);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -146,7 +174,7 @@ class _SearchViewState extends State<_SearchView> {
           child: TextField(
             key: const ValueKey('search-field'),
             controller: _controller,
-            autofocus: true,
+            autofocus: widget.initialQuery == null,
             textInputAction: TextInputAction.search,
             onChanged: context.read<SearchCubit>().queryChanged,
             decoration: InputDecoration(
@@ -176,6 +204,11 @@ class _SearchViewState extends State<_SearchView> {
               ).copyWith(top: AppSpacing.md),
               children: [
                 Text('Try searching for', style: context.text.titleSmall),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  'Search matches whole words in confessions.',
+                  style: context.text.bodySmall,
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 Wrap(
                   spacing: AppSpacing.xs,
@@ -184,6 +217,7 @@ class _SearchViewState extends State<_SearchView> {
                     for (final s in _suggestions)
                       SelectableCategoryChip(
                         label: s,
+                        icon: Icons.search,
                         selected: false,
                         onTap: () => _use(s),
                       ),
@@ -211,12 +245,14 @@ class _SearchViewState extends State<_SearchView> {
               message: 'Try a different word.',
             );
           }
+          final settings = context.watch<SettingsCubit>().state;
           return ListView.separated(
             padding: responsiveHorizontalPadding(
               context,
-            ).copyWith(top: AppSpacing.md, bottom: AppSpacing.xxl),
+              side: AppSpacing.sm,
+            ).copyWith(top: AppSpacing.sm, bottom: AppSpacing.xxl),
             itemCount: state.results.length + 1,
-            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
             itemBuilder: (context, i) {
               if (i == 0) {
                 return Text(
@@ -232,11 +268,11 @@ class _SearchViewState extends State<_SearchView> {
                 key: ValueKey('search-${c.id}'),
                 confession: c,
                 categories: categories,
+                compact: settings.feedLayout == FeedLayout.compact,
                 maxLines: 4,
-                onTap: () => Navigator.of(context).pushNamed(
-                  AppRoutes.confession,
-                  arguments: ConfessionRouteArgs(id: c.id, initial: c),
-                ),
+                blurMature: settings.blurMature,
+                onTap: () => openConfession(context, c, source: 'search'),
+                onShare: () => shareConfession(context, c, source: 'search'),
               );
             },
           );

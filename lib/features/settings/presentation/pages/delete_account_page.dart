@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../app/theme/app_tokens.dart';
+import '../../../../core/analytics/analytics.dart';
 import '../../../../core/utils/ui_notice.dart';
 import '../../../../core/widgets/common.dart';
 import '../../../auth/domain/auth_repository.dart';
@@ -21,6 +22,7 @@ class DeleteAccountPage extends StatelessWidget {
         auth: context.read<AuthRepository>(),
         profiles: context.read<ProfileRepository>(),
         confessions: context.read<ConfessionRepository>(),
+        analytics: context.read<Analytics>(),
       ),
       child: const _DeleteAccountView(),
     );
@@ -57,9 +59,14 @@ class _DeleteAccountView extends StatelessWidget {
                 'preferences. Your anonymous name is released.',
               ),
               const _Bullet(
-                'Confessions you posted, plus your likes, reactions, saves '
-                'and views stored on this device.',
+                'Every confession you posted, with its likes, reactions and '
+                'views.',
               ),
+              const _Bullet(
+                'Your likes, reactions, saves and reads on other '
+                'confessions. Their counts go down to match.',
+              ),
+              const _Bullet('Your synced app settings.'),
               const SizedBox(height: AppSpacing.md),
               Text('What may remain', style: context.text.titleMedium),
               const SizedBox(height: AppSpacing.xs),
@@ -68,7 +75,7 @@ class _DeleteAccountView extends StatelessWidget {
                 'records. They contain no name or email.',
               ),
               const _Bullet(
-                'Your Google account itself — we only remove Let\'s Spill\'s '
+                'Your Google account itself. We only remove Let\'s Spill\'s '
                 'access to it.',
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -85,7 +92,8 @@ class _DeleteAccountView extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                "Google will ask you to confirm it's you.",
+                "Google will ask you to confirm it's you. This can take a "
+                'little while if you have posted or liked a lot.',
                 style: context.text.bodySmall,
               ),
               const SizedBox(height: AppSpacing.lg),

@@ -1,9 +1,8 @@
-# Firebase setup — Let's Spill
+# Firebase setup for Let's Spill
 
-Let's Spill uses Firebase for **Google sign-in** and for the user's **profile**
-(anonymous username, age range and reading preferences). Confession content is
-bundled JSON for now. Nothing here is pre-configured: no project IDs, keys or
-credentials are committed. Steps marked **(you)** need your Google account.
+Let's Spill uses Firebase for **Google sign in**, **Cloud Firestore** (profiles,
+settings, confessions, likes, reactions, saves, reads and reports) and
+**Google Analytics**. Steps marked **(you)** need your Google account.
 
 ---
 
@@ -19,8 +18,12 @@ firebase login                    # (you)
 
 ## 2. Create the Firebase project (you)
 
-<https://console.firebase.google.com> → **Add project** (e.g. `lets-spill-dev`).
-Analytics is optional. Use separate projects for dev and prod.
+In the [Firebase console](https://console.firebase.google.com), add a project
+(for example `lets-spill`) and **turn on Google Analytics** when asked. If the
+project already exists without it, open Project settings, Integrations,
+Google Analytics and link it, then re-run `flutterfire configure` so the
+config files include the measurement ids. Use separate projects for dev and
+prod.
 
 ## 3. Connect the app
 
@@ -90,10 +93,26 @@ permanent) → **production mode**. Then:
 
 ```sh
 firebase use --add                          # pick the project
-firebase deploy --only firestore:rules,firestore:indexes
+firebase deploy --only firestore            # rules and indexes
 ```
 
+Indexes take a few minutes to build. Until they are ready, feeds show
+"The database needs an index"; the console shows progress under Firestore,
+Indexes.
+
 > Never use "test mode" rules with real users.
+
+### Load the sample confessions (optional)
+
+```sh
+gcloud auth application-default login       # (you) once
+cd firebase/seed && npm install
+npm run seed -- --project <your-project-id>
+```
+
+This adds the 28 fictional posts from `assets/mock/confessions.json` with
+fresh dates and zero likes, so the feed isn't empty on day one. Remove them
+later with `npm run seed -- --project <id> --delete`.
 
 ## 6. Run
 
@@ -108,27 +127,12 @@ onboarding steps, then the home screen.
 
 ## Firestore schema
 
-```
-users/{uid}                          PRIVATE (owner only)
-  username              "QuietComet27"   generated handle, chosen not typed
-  usernameLower         "quietcomet27"
-  ageRange              teen | young | adult | mid | senior
-                        (13–17 | 18–24 | 25–34 | 35–44 | 45+)
-  preferredCategoryIds  ["life", "family"]  (1–6 known ids)
-  onboardingComplete    true
-  createdAt, updatedAt  server timestamps
-
-usernames/{usernameLower}            uniqueness claim
-  uid, createdAt
-
-reports/{confessionId}_{uid}         create-only
-  confessionId, reporterUid, reason, details (≤500), createdAt,
-  reviewStatus: "open"
-```
+See [DATABASE.md](DATABASE.md) for every collection and field, how a like is
+written, the ranking and the indexes.
 
 **Not stored:** passwords, real name, email, photo, birthday, phone number.
-Firebase Auth keeps the Google account details; the app shows them only on
-the private profile screen.
+Firebase Auth keeps the Google account details; the app shows them only in
+the user's own Settings.
 
 ### What the rules enforce (`firebase/firestore.rules`)
 
@@ -139,7 +143,14 @@ the private profile screen.
 - Usernames must match `^[A-Za-z]{6,24}[0-9]{2}$`, the generator's format. A
   typed name with spaces or a real "First Last" is rejected.
 - `ageRange` and categories must come from the fixed lists. After onboarding,
-  only the preferences can change; the username and age are locked.
+  only interests and settings can change; the username and age are locked.
+- Confessions are created together with their private author link and the
+  author's post mirror, with every counter at zero.
+- Counters move by exactly one, and only in the same write as the like,
+  reaction, read or save document behind them. One per person.
+- Readers under 18 can't read or post 18+ confessions, even with a crafted
+  query.
+- Only the author can delete a confession.
 - A user can delete only their own profile and only their own username claim.
 - Reports are create-only, one per user per confession, and can't be read back
   by others.
@@ -150,20 +161,21 @@ needs Java 11+ for the emulator.
 
 ## Account deletion
 
-Profile → **Delete account**:
+Settings, **Delete account**:
 
 1. Google asks the user to confirm it's them (re-authentication).
-2. The app deletes `users/{uid}` and `usernames/{name}`, which releases the handle.
-3. It clears on-device likes, reactions, saves, views and own posts.
+2. The app removes their likes, reactions, saves and reads, decrementing each
+   counter, then deletes their posts.
+3. It deletes `users/{uid}` and `usernames/{name}`, which releases the handle.
 4. It deletes the Firebase Auth user and disconnects Google.
 
 Reports stay for moderation; they contain no name or email. Say this in
 your privacy policy.
 
-## About the 13–17 age range
+## About the 13 to 17 age range
 
-The app lets teens sign up, and it hides confessions marked `"mature": true`
-from them. Before launch, get legal advice for your markets: COPPA in the US
+The app lets teens sign up, hides 18+ confessions from them (in the app and
+in the rules), stops them marking posts 18+, and collects no advertising ID. Before launch, get legal advice for your markets: COPPA in the US
 (under 13 is not allowed), GDPR-K and the UK Children's Code (age-appropriate
 design), and the app store age ratings. Also consider whether teens should be
 able to post at all.
@@ -175,9 +187,9 @@ able to post at all.
   `flutter pub add firebase_app_check` and call `activate()` after
   `Firebase.initializeApp` in `lib/app/bootstrap.dart`. Enforce it once the
   metrics look healthy.
-- **Costs today are tiny**: each session reads one profile document, and
-  writes happen only during onboarding, preference edits and reports.
-  Confessions don't touch Firestore yet.
+- **Costs**: a feed page reads 15 confessions plus one query for liked
+  state; a like or reaction is one transaction with three or four writes; a
+  qualified read is two writes. The free Spark plan covers early usage.
 - Monitor usage in **Firestore → Usage** and in **Firebase Console → Usage
   and billing**. On the **Blaze** plan you pay as you go, and **budget alerts
   only notify you; they don't cap spending**. Set alerts at 50/90/100% of a
@@ -192,4 +204,6 @@ able to post at all.
 | iOS crashes on sign-in | Add the REVERSED_CLIENT_ID URL scheme (step 4) |
 | `operation-not-allowed` | Enable the Google provider (step 4) |
 | `permission-denied` when finishing onboarding | Deploy the rules (step 5) |
+| "The database needs an index" | `firebase deploy --only firestore:indexes`, then wait for the build |
+| Empty feed on a new project | Load the sample confessions (step 5) or post one |
 | Web popup blocked or closed | Allow popups. Closing the popup is treated as a cancel, not an error |

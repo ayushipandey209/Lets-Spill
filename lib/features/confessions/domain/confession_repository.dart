@@ -2,9 +2,10 @@ import 'confession.dart';
 
 /// Contract used by every BLoC that touches confessions.
 ///
-/// Current implementation: `LocalConfessionRepository` — content from the
-/// bundled JSON, with the signed-in user's likes, reactions, saves, views and
-/// own posts persisted on the device (keyed by their Firebase uid).
+/// Production implementation: `FirestoreConfessionRepository`. Every post,
+/// like, reaction, save and qualified view is a Firestore document, and the
+/// counters on each confession are kept in step with them inside
+/// transactions (enforced by `firebase/firestore.rules`).
 abstract interface class ConfessionRepository {
   /// One page of published confessions matching [query].
   Future<ConfessionPage> fetchPage(
@@ -27,15 +28,23 @@ abstract interface class ConfessionRepository {
     required String text,
     required String categoryId,
     required String displayName,
+    bool mature = false,
   });
 
   /// Deletes one of the signed-in user's own confessions.
   Future<void> delete(String id);
 
+  /// The signed-in user's own confessions, newest first.
   Future<List<Confession>> fetchMine();
 
   Future<bool> isLiked(String id);
   Future<Confession> setLiked(String id, {required bool liked});
+
+  /// Which of [ids] the signed-in user has liked.
+  Future<Set<String>> likedIds(Iterable<String> ids);
+
+  /// Confessions the signed-in user liked, most recent like first.
+  Future<List<Confession>> fetchLiked();
 
   Future<Reaction?> myReaction(String id);
 
@@ -45,6 +54,8 @@ abstract interface class ConfessionRepository {
   Future<bool> isSaved(String id);
   Future<void> setSaved(String id, {required bool saved});
   Future<Set<String>> savedIds();
+
+  /// Saved confessions, most recently saved first.
   Future<List<Confession>> fetchSaved();
 
   Future<bool> hasViewed(String id);
@@ -52,7 +63,9 @@ abstract interface class ConfessionRepository {
   /// Records a qualifying view. `false` if this user was already counted.
   Future<bool> recordView(String id);
 
-  /// Removes everything stored for the signed-in user (account deletion).
+  /// Removes everything stored for the signed-in user (account deletion):
+  /// their posts, and their likes, reactions, saves and views with the
+  /// matching counters decremented.
   Future<void> clearUserData();
 
   Stream<ConfessionChange> get changes;

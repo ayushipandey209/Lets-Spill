@@ -33,7 +33,7 @@ enum Reaction {
 }
 
 /// A public confession. Shows either "Anonymous" or the author's generated
-/// anonymous handle — never a real name, email or account id.
+/// anonymous handle, never a real name, email or account id.
 class Confession extends Equatable {
   const Confession({
     required this.id,
@@ -42,6 +42,7 @@ class Confession extends Equatable {
     required this.createdAt,
     this.likeCount = 0,
     this.viewCount = 0,
+    this.saveCount = 0,
     this.reactionCounts = const {},
     this.mature = false,
     this.authorDisplayName = anonymousName,
@@ -64,6 +65,7 @@ class Confession extends Equatable {
       createdAt: DateTime.parse(json['createdAt'] as String),
       likeCount: (json['likeCount'] as num?)?.toInt() ?? 0,
       viewCount: (json['viewCount'] as num?)?.toInt() ?? 0,
+      saveCount: (json['saveCount'] as num?)?.toInt() ?? 0,
       reactionCounts: Map.unmodifiable(reactions),
       mature: (json['mature'] as bool?) ?? false,
       authorDisplayName:
@@ -80,9 +82,12 @@ class Confession extends Equatable {
   final DateTime createdAt;
   final int likeCount;
   final int viewCount;
+
+  /// How many readers bookmarked it.
+  final int saveCount;
   final Map<Reaction, int> reactionCounts;
 
-  /// Adult themes (e.g. affairs). Hidden from readers aged 13–17.
+  /// Adult themes (e.g. affairs). Hidden from readers aged 13 to 17.
   final bool mature;
 
   /// "Anonymous" or an anonymous handle like "@QuietComet27".
@@ -110,6 +115,7 @@ class Confession extends Equatable {
   Confession copyWith({
     int? likeCount,
     int? viewCount,
+    int? saveCount,
     Map<Reaction, int>? reactionCounts,
     ConfessionStatus? status,
   }) {
@@ -120,6 +126,7 @@ class Confession extends Equatable {
       createdAt: createdAt,
       likeCount: likeCount ?? this.likeCount,
       viewCount: viewCount ?? this.viewCount,
+      saveCount: saveCount ?? this.saveCount,
       reactionCounts: reactionCounts ?? this.reactionCounts,
       mature: mature,
       authorDisplayName: authorDisplayName,
@@ -134,6 +141,7 @@ class Confession extends Equatable {
     'createdAt': createdAt.toUtc().toIso8601String(),
     'likeCount': likeCount,
     'viewCount': viewCount,
+    'saveCount': saveCount,
     'reactionCounts': {
       for (final e in reactionCounts.entries) e.key.name: e.value,
     },
@@ -150,6 +158,7 @@ class Confession extends Equatable {
     createdAt,
     likeCount,
     viewCount,
+    saveCount,
     reactionCounts,
     mature,
     authorDisplayName,
@@ -158,7 +167,16 @@ class Confession extends Equatable {
 }
 
 /// How the feed is ordered.
-enum FeedSort { latest, trending }
+enum FeedSort {
+  /// Newest first.
+  latest,
+
+  /// Engagement weighted by recency (see `Ranking.hotScore`).
+  hot,
+
+  /// Most liked of all time.
+  top,
+}
 
 /// What to load in a feed or search.
 class FeedQuery extends Equatable {
@@ -177,6 +195,8 @@ class FeedQuery extends Equatable {
 
   /// Case-insensitive keyword search across text and category.
   final String? search;
+
+  bool get hasSearch => (search?.trim().length ?? 0) >= 2;
 
   @override
   List<Object?> get props => [sort, categoryIds, includeMature, search];
@@ -234,4 +254,13 @@ class ConfessionSavedChanged extends ConfessionChange {
   final bool saved;
   @override
   List<Object?> get props => [confession, saved];
+}
+
+/// The signed-in reader liked or unliked a confession.
+class ConfessionLikedChanged extends ConfessionChange {
+  const ConfessionLikedChanged(this.confession, {required this.liked});
+  final Confession confession;
+  final bool liked;
+  @override
+  List<Object?> get props => [confession, liked];
 }

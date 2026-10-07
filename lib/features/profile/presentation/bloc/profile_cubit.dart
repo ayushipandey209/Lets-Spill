@@ -3,17 +3,23 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/analytics/analytics.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/utils/ui_notice.dart';
-import '../../../../core/utils/validators.dart';
 import '../../../confessions/domain/confession.dart';
 import '../../../confessions/domain/confession_repository.dart';
-import '../../domain/profile_repository.dart';
 import '../../domain/user_profile.dart';
 
 enum ProfileStatus { loading, ready, failure }
 
-enum ProfileSection { mine, saved }
+enum ProfileSection {
+  mine('Posts'),
+  saved('Saved'),
+  liked('Liked');
+
+  const ProfileSection(this.label);
+  final String label;
+}
 
 class ProfileState extends Equatable {
   const ProfileState({
@@ -22,8 +28,7 @@ class ProfileState extends Equatable {
     this.section = ProfileSection.mine,
     this.myConfessions = const [],
     this.saved = const [],
-    this.draftCategoryIds = const [],
-    this.prefsStatus = SubmitStatus.idle,
+    this.liked = const [],
     this.deletingIds = const {},
     this.errorMessage,
     this.notice,
@@ -34,17 +39,25 @@ class ProfileState extends Equatable {
   final ProfileSection section;
   final List<Confession> myConfessions;
   final List<Confession> saved;
-  final List<String> draftCategoryIds;
-  final SubmitStatus prefsStatus;
+  final List<Confession> liked;
   final Set<String> deletingIds;
   final String? errorMessage;
   final UiNotice? notice;
 
-  bool get hasUnsavedPreferences {
-    final current = profile.preferredCategoryIds;
-    return current.length != draftCategoryIds.length ||
-        !current.toSet().containsAll(draftCategoryIds);
-  }
+  List<Confession> get current => switch (section) {
+    ProfileSection.mine => myConfessions,
+    ProfileSection.saved => saved,
+    ProfileSection.liked => liked,
+  };
+
+  /// Likes plus reactions received on your posts (like Reddit karma).
+  int get karma => myConfessions.fold(
+    0,
+    (sum, c) => sum + c.likeCount + c.totalReactions,
+  );
+
+  /// Total qualified reads of your posts.
+  int get reads => myConfessions.fold(0, (sum, c) => sum + c.viewCount);
 
   ProfileState copyWith({
     UserProfile? profile,
@@ -52,8 +65,7 @@ class ProfileState extends Equatable {
     ProfileSection? section,
     List<Confession>? myConfessions,
     List<Confession>? saved,
-    List<String>? draftCategoryIds,
-    SubmitStatus? prefsStatus,
+    List<Confession>? liked,
     Set<String>? deletingIds,
     String? errorMessage,
     UiNotice? notice,
@@ -64,8 +76,7 @@ class ProfileState extends Equatable {
       section: section ?? this.section,
       myConfessions: myConfessions ?? this.myConfessions,
       saved: saved ?? this.saved,
-      draftCategoryIds: draftCategoryIds ?? this.draftCategoryIds,
-      prefsStatus: prefsStatus ?? this.prefsStatus,
+      liked: liked ?? this.liked,
       deletingIds: deletingIds ?? this.deletingIds,
       errorMessage: errorMessage ?? this.errorMessage,
       notice: notice ?? this.notice,
@@ -79,50 +90,47 @@ class ProfileState extends Equatable {
     section,
     myConfessions,
     saved,
-    draftCategoryIds,
-    prefsStatus,
+    liked,
     deletingIds,
     errorMessage,
     notice,
   ];
 }
 
-/// Private profile: preferences, your posts and saved confessions.
+/// Your posts, saved and liked confessions, and your stats.
 class ProfileCubit extends Cubit<ProfileState> {
   ProfileCubit({
     required UserProfile profile,
-    required ProfileRepository profileRepository,
     required ConfessionRepository confessionRepository,
-    this.onProfileUpdated,
-  }) : _profiles = profileRepository,
-       _confessions = confessionRepository,
-       super(
-         ProfileState(
-           profile: profile,
-           draftCategoryIds: profile.preferredCategoryIds,
-         ),
-       ) {
-    _changesSub = _confessions.changes.listen((_) => _reloadLists());
+    Analytics analytics = const NoopAnalytics(),
+  }) : _confessions = confessionRepository,
+       _analytics = analytics,
+       super(ProfileState(profile: profile)) {
+    _changesSub = _confessions.changes.listen((_) => _scheduleReload());
   }
 
-  final ProfileRepository _profiles;
   final ConfessionRepository _confessions;
-  final void Function(UserProfile profile)? onProfileUpdated;
+  final Analytics _analytics;
   late final StreamSubscription<ConfessionChange> _changesSub;
+  Timer? _reloadTimer;
+
+  Future<List<List<Confession>>> _fetchAll() => Future.wait([
+    _confessions.fetchMine(),
+    _confessions.fetchSaved(),
+    _confessions.fetchLiked(),
+  ]);
 
   Future<void> load() async {
     emit(state.copyWith(status: ProfileStatus.loading));
     try {
-      final results = await Future.wait([
-        _confessions.fetchMine(),
-        _confessions.fetchSaved(),
-      ]);
+      final results = await _fetchAll();
       if (isClosed) return;
       emit(
         state.copyWith(
           status: ProfileStatus.ready,
           myConfessions: results[0],
           saved: results[1],
+          liked: results[2],
         ),
       );
     } catch (e) {
@@ -136,72 +144,44 @@ class ProfileCubit extends Cubit<ProfileState> {
     }
   }
 
+  /// Several changes often arrive together (a like updates the post and
+  /// the liked list), so reloads are coalesced.
+  void _scheduleReload() {
+    _reloadTimer?.cancel();
+    _reloadTimer = Timer(const Duration(milliseconds: 400), _reloadLists);
+  }
+
   Future<void> _reloadLists() async {
     if (isClosed || state.status != ProfileStatus.ready) return;
     try {
-      final results = await Future.wait([
-        _confessions.fetchMine(),
-        _confessions.fetchSaved(),
-      ]);
+      final results = await _fetchAll();
       if (isClosed) return;
-      emit(state.copyWith(myConfessions: results[0], saved: results[1]));
+      emit(
+        state.copyWith(
+          myConfessions: results[0],
+          saved: results[1],
+          liked: results[2],
+        ),
+      );
     } catch (_) {
       // Keep the current lists; the next explicit load will retry.
     }
   }
 
+  /// Keeps the header in sync after the profile changes elsewhere.
+  void profileChanged(UserProfile profile) {
+    if (profile != state.profile) emit(state.copyWith(profile: profile));
+  }
+
   void selectSection(ProfileSection section) =>
       emit(state.copyWith(section: section));
-
-  void toggleCategory(String id) {
-    final next = List<String>.of(state.draftCategoryIds);
-    if (!next.remove(id)) next.add(id);
-    emit(
-      state.copyWith(
-        draftCategoryIds: List.unmodifiable(next),
-        prefsStatus: SubmitStatus.idle,
-      ),
-    );
-  }
-
-  Future<void> savePreferences() async {
-    if (state.prefsStatus == SubmitStatus.submitting) return;
-    final error = Validators.categories(state.draftCategoryIds);
-    if (error != null) {
-      emit(state.copyWith(notice: UiNotice(error, isError: true)));
-      return;
-    }
-    emit(state.copyWith(prefsStatus: SubmitStatus.submitting));
-    try {
-      final profile = await _profiles.updatePreferredCategories(
-        state.draftCategoryIds,
-      );
-      if (isClosed) return;
-      onProfileUpdated?.call(profile);
-      emit(
-        state.copyWith(
-          profile: profile,
-          draftCategoryIds: profile.preferredCategoryIds,
-          prefsStatus: SubmitStatus.success,
-          notice: UiNotice('Preferences saved. Your feed is updated.'),
-        ),
-      );
-    } catch (e) {
-      if (isClosed) return;
-      emit(
-        state.copyWith(
-          prefsStatus: SubmitStatus.failure,
-          notice: UiNotice(asAppException(e).message, isError: true),
-        ),
-      );
-    }
-  }
 
   Future<void> deleteConfession(String id) async {
     if (state.deletingIds.contains(id)) return;
     emit(state.copyWith(deletingIds: {...state.deletingIds, id}));
     try {
       await _confessions.delete(id);
+      _analytics.log(AnalyticsEvents.deletePost, {'confession_id': id});
       if (isClosed) return;
       emit(
         state.copyWith(
@@ -224,6 +204,10 @@ class ProfileCubit extends Cubit<ProfileState> {
   Future<void> unsave(String id) async {
     try {
       await _confessions.setSaved(id, saved: false);
+      _analytics.log(AnalyticsEvents.unsave, {
+        'confession_id': id,
+        'surface': 'profile',
+      });
     } catch (e) {
       if (isClosed) return;
       emit(
@@ -236,6 +220,7 @@ class ProfileCubit extends Cubit<ProfileState> {
 
   @override
   Future<void> close() async {
+    _reloadTimer?.cancel();
     await _changesSub.cancel();
     return super.close();
   }

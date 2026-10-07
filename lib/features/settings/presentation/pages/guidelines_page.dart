@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_tokens.dart';
 import '../../../../core/widgets/common.dart';
 
-/// Community guidelines. Draft copy — have it reviewed before launch.
+/// Community guidelines. Have the copy reviewed before launch.
 class GuidelinesPage extends StatelessWidget {
   const GuidelinesPage({super.key});
 
@@ -19,12 +19,12 @@ class GuidelinesPage extends StatelessWidget {
       'Don’t name or identify real people, schools, workplaces or companies '
           'in a way that lets others work out who they are. Change details. '
           'Never post addresses, phone numbers, social handles, photos or other '
-          'personal information — yours or anyone else’s.',
+          'personal information, yours or anyone else’s.',
     ),
     (
       'No harassment, threats or hate',
       'No bullying, intimidation, threats of violence, hate speech or content '
-          'that encourages self-harm. No sexual content involving minors — '
+          'that encourages self-harm. No sexual content involving minors, '
           'ever.',
     ),
     (
@@ -90,12 +90,9 @@ class GuidelinesPage extends StatelessWidget {
             const HairlineDivider(),
             const SizedBox(height: AppSpacing.md),
           ],
-          const NoteBox(
-            icon: Icons.edit_note_outlined,
-            child: Text(
-              'Draft guidelines for the MVP. Have them reviewed (and linked '
-              'from your store listing) before production.',
-            ),
+          Text(
+            'Thanks for keeping Let’s Spill kind.',
+            style: context.text.bodySmall,
           ),
         ],
       ),

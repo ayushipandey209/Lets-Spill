@@ -12,9 +12,9 @@ abstract final class AppTypography {
   static TextStyle style({
     required double size,
     required int weight,
+    required Color color,
     double height = 1.4,
     double letterSpacing = 0,
-    Color color = AppPalette.ink,
   }) {
     return TextStyle(
       fontFamily: family,
@@ -32,28 +32,43 @@ abstract final class AppTypography {
     return FontWeight.values[index];
   }
 
-  static TextTheme textTheme() {
+  /// A compact, reading-first scale (body 15, metadata 12).
+  static TextTheme textTheme(AppTokens t) {
+    TextStyle s(
+      double size,
+      int weight, {
+      double height = 1.4,
+      double letterSpacing = 0,
+      Color? color,
+    }) => style(
+      size: size,
+      weight: weight,
+      height: height,
+      letterSpacing: letterSpacing,
+      color: color ?? t.ink,
+    );
+
     return TextTheme(
       // Wordmark / hero.
-      displayLarge: style(size: 48, weight: 800, height: 1.05, letterSpacing: -1.2),
-      displayMedium: style(size: 38, weight: 800, height: 1.08, letterSpacing: -0.9),
-      displaySmall: style(size: 30, weight: 750, height: 1.12, letterSpacing: -0.6),
+      displayLarge: s(42, 800, height: 1.05, letterSpacing: -1.1),
+      displayMedium: s(34, 800, height: 1.08, letterSpacing: -0.8),
+      displaySmall: s(26, 750, height: 1.15, letterSpacing: -0.5),
       // Screen titles.
-      headlineLarge: style(size: 28, weight: 700, height: 1.15, letterSpacing: -0.5),
-      headlineMedium: style(size: 24, weight: 700, height: 1.2, letterSpacing: -0.4),
-      headlineSmall: style(size: 20, weight: 700, height: 1.25, letterSpacing: -0.2),
+      headlineLarge: s(24, 720, height: 1.18, letterSpacing: -0.4),
+      headlineMedium: s(20, 700, height: 1.22, letterSpacing: -0.3),
+      headlineSmall: s(18, 700, height: 1.25, letterSpacing: -0.2),
       // Section titles / app bar.
-      titleLarge: style(size: 18, weight: 650, height: 1.3, letterSpacing: -0.1),
-      titleMedium: style(size: 16, weight: 600, height: 1.35),
-      titleSmall: style(size: 14, weight: 600, height: 1.35),
-      // Reading text — generous line height for long confessions.
-      bodyLarge: style(size: 17, weight: 420, height: 1.6),
-      bodyMedium: style(size: 15, weight: 420, height: 1.55),
-      bodySmall: style(size: 13, weight: 450, height: 1.45, color: AppPalette.inkMuted),
+      titleLarge: s(17, 660, height: 1.3, letterSpacing: -0.1),
+      titleMedium: s(15, 620, height: 1.35),
+      titleSmall: s(13.5, 620, height: 1.35),
+      // Reading text: comfortable line height for long confessions.
+      bodyLarge: s(15.5, 420, height: 1.58),
+      bodyMedium: s(14, 420, height: 1.5),
+      bodySmall: s(12.5, 460, height: 1.45, color: t.inkMuted),
       // Buttons, chips, metadata.
-      labelLarge: style(size: 15, weight: 650, height: 1.2, letterSpacing: 0.1),
-      labelMedium: style(size: 13, weight: 600, height: 1.2, letterSpacing: 0.2),
-      labelSmall: style(size: 11, weight: 700, height: 1.2, letterSpacing: 1.1),
+      labelLarge: s(14, 650, height: 1.2, letterSpacing: 0.1),
+      labelMedium: s(12.5, 600, height: 1.2, letterSpacing: 0.1),
+      labelSmall: s(10.5, 700, height: 1.2, letterSpacing: 0.9),
     );
   }
 }
@@ -67,46 +82,50 @@ extension TextStyleWeightX on TextStyle {
 }
 
 abstract final class AppTheme {
-  static ThemeData light() {
-    const t = AppTokens.standard;
-    final text = AppTypography.textTheme();
+  static ThemeData light() => build(AppTokens.light);
 
-    const scheme = ColorScheme(
-      brightness: Brightness.light,
-      primary: AppPalette.ink,
-      onPrimary: AppPalette.beige,
-      primaryContainer: AppPalette.beigeDeep,
-      onPrimaryContainer: AppPalette.ink,
-      secondary: AppPalette.ink,
-      onSecondary: AppPalette.beige,
-      secondaryContainer: AppPalette.beigeDeep,
-      onSecondaryContainer: AppPalette.ink,
-      tertiary: AppPalette.inkMuted,
-      onTertiary: AppPalette.beige,
-      error: AppPalette.error,
-      onError: AppPalette.beige,
-      surface: AppPalette.beige,
-      onSurface: AppPalette.ink,
-      onSurfaceVariant: AppPalette.inkMuted,
-      surfaceContainerLowest: AppPalette.beige,
-      surfaceContainerLow: AppPalette.beige,
-      surfaceContainer: AppPalette.beigeDeep,
-      surfaceContainerHigh: AppPalette.beigeDeep,
-      surfaceContainerHighest: AppPalette.beigeDeep,
-      outline: AppPalette.beigeGrey,
-      outlineVariant: AppPalette.beigeGrey,
-      shadow: AppPalette.ink,
-      scrim: AppPalette.ink,
-      inverseSurface: AppPalette.ink,
-      onInverseSurface: AppPalette.beige,
-      inversePrimary: AppPalette.beige,
+  static ThemeData dark() => build(AppTokens.dark);
+
+  static ThemeData build(AppTokens t) {
+    final text = AppTypography.textTheme(t);
+    final isDark = t.isDark;
+
+    final scheme = ColorScheme(
+      brightness: t.brightness,
+      primary: t.ink,
+      onPrimary: t.onInk,
+      primaryContainer: t.surface,
+      onPrimaryContainer: t.ink,
+      secondary: t.accent,
+      onSecondary: t.onInk,
+      secondaryContainer: t.surface,
+      onSecondaryContainer: t.ink,
+      tertiary: t.inkMuted,
+      onTertiary: t.onInk,
+      error: t.error,
+      onError: t.onInk,
+      surface: t.background,
+      onSurface: t.ink,
+      onSurfaceVariant: t.inkMuted,
+      surfaceContainerLowest: t.background,
+      surfaceContainerLow: t.card,
+      surfaceContainer: t.card,
+      surfaceContainerHigh: t.surface,
+      surfaceContainerHighest: t.surface,
+      outline: t.border,
+      outlineVariant: t.border,
+      shadow: Colors.black,
+      scrim: Colors.black,
+      inverseSurface: t.ink,
+      onInverseSurface: t.onInk,
+      inversePrimary: t.onInk,
       surfaceTint: Colors.transparent,
     );
 
     final buttonShape = WidgetStateProperty.all<OutlinedBorder>(
       const RoundedRectangleBorder(borderRadius: AppRadii.button),
     );
-    const buttonPadding = EdgeInsets.symmetric(horizontal: 22, vertical: 16);
+    const buttonPadding = EdgeInsets.symmetric(horizontal: 20, vertical: 14);
     final buttonText = WidgetStateProperty.all(text.labelLarge);
 
     final inputBorder = OutlineInputBorder(
@@ -125,9 +144,10 @@ abstract final class AppTheme {
       splashFactory: InkRipple.splashFactory,
       visualDensity: VisualDensity.standard,
       materialTapTargetSize: MaterialTapTargetSize.padded,
-      extensions: const [t],
+      brightness: t.brightness,
+      extensions: [t],
       dividerTheme: DividerThemeData(color: t.border, thickness: 1, space: 1),
-      iconTheme: IconThemeData(color: t.ink, size: 22),
+      iconTheme: IconThemeData(color: t.ink, size: 21),
       appBarTheme: AppBarTheme(
         backgroundColor: t.background,
         foregroundColor: t.ink,
@@ -137,9 +157,15 @@ abstract final class AppTheme {
         centerTitle: false,
         titleTextStyle: text.titleLarge,
         iconTheme: IconThemeData(color: t.ink),
-        systemOverlayStyle: SystemUiOverlayStyle.dark.copyWith(
-          statusBarColor: Colors.transparent,
-        ),
+        systemOverlayStyle:
+            (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
+                .copyWith(
+                  statusBarColor: Colors.transparent,
+                  systemNavigationBarColor: t.card,
+                  systemNavigationBarIconBrightness: isDark
+                      ? Brightness.light
+                      : Brightness.dark,
+                ),
         shape: Border(bottom: BorderSide(color: t.border.withValues(alpha: 0))),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -147,7 +173,7 @@ abstract final class AppTheme {
           shape: buttonShape,
           padding: WidgetStateProperty.all(buttonPadding),
           textStyle: buttonText,
-          minimumSize: WidgetStateProperty.all(const Size(64, 52)),
+          minimumSize: WidgetStateProperty.all(const Size(64, 48)),
           elevation: WidgetStateProperty.all(0),
           backgroundColor: WidgetStateProperty.resolveWith(
             (s) => s.contains(WidgetState.disabled)
@@ -170,7 +196,7 @@ abstract final class AppTheme {
           shape: buttonShape,
           padding: WidgetStateProperty.all(buttonPadding),
           textStyle: buttonText,
-          minimumSize: WidgetStateProperty.all(const Size(64, 52)),
+          minimumSize: WidgetStateProperty.all(const Size(64, 48)),
           elevation: WidgetStateProperty.all(0),
           backgroundColor: WidgetStateProperty.all(t.ink),
           foregroundColor: WidgetStateProperty.all(t.onInk),
@@ -181,7 +207,7 @@ abstract final class AppTheme {
           shape: buttonShape,
           padding: WidgetStateProperty.all(buttonPadding),
           textStyle: buttonText,
-          minimumSize: WidgetStateProperty.all(const Size(64, 52)),
+          minimumSize: WidgetStateProperty.all(const Size(64, 48)),
           foregroundColor: WidgetStateProperty.resolveWith(
             (s) => s.contains(WidgetState.disabled)
                 ? t.ink.withValues(alpha: 0.38)
@@ -237,7 +263,7 @@ abstract final class AppTheme {
         pressElevation: 0,
       ),
       cardTheme: CardThemeData(
-        color: t.background,
+        color: t.card,
         elevation: 0,
         margin: EdgeInsets.zero,
         surfaceTintColor: Colors.transparent,
@@ -248,8 +274,8 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: t.surface.withValues(alpha: 0.55),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        fillColor: t.surface.withValues(alpha: isDark ? 0.8 : 0.55),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         labelStyle: text.bodyMedium!.copyWith(color: t.inkMuted),
         floatingLabelStyle: text.labelMedium!.copyWith(color: t.ink),
         hintStyle: text.bodyMedium!.copyWith(color: t.inkMuted),
@@ -285,7 +311,7 @@ abstract final class AppTheme {
         elevation: 0,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: t.background,
+        backgroundColor: t.card,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -296,9 +322,9 @@ abstract final class AppTheme {
         contentTextStyle: text.bodyMedium,
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: t.background,
+        backgroundColor: t.card,
         surfaceTintColor: Colors.transparent,
-        modalBackgroundColor: t.background,
+        modalBackgroundColor: t.card,
         elevation: 0,
         showDragHandle: true,
         dragHandleColor: t.border,
@@ -307,7 +333,7 @@ abstract final class AppTheme {
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
-        color: t.background,
+        color: t.card,
         surfaceTintColor: Colors.transparent,
         textStyle: text.bodyMedium,
         shape: RoundedRectangleBorder(
@@ -324,6 +350,44 @@ abstract final class AppTheme {
       ),
       radioTheme: RadioThemeData(
         fillColor: WidgetStateProperty.all(t.ink),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? t.onInk : t.inkMuted,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? t.ink : t.surface,
+        ),
+        trackOutlineColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? t.ink : t.border,
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: t.card,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: t.surface,
+        elevation: 0,
+        height: 64,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        iconTheme: WidgetStateProperty.resolveWith(
+          (s) => IconThemeData(
+            size: 23,
+            color: s.contains(WidgetState.selected) ? t.ink : t.inkMuted,
+          ),
+        ),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (s) => text.labelMedium!.copyWith(
+            fontSize: 11.5,
+            color: s.contains(WidgetState.selected) ? t.ink : t.inkMuted,
+          ),
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: t.ink,
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+        ),
+        textStyle: text.labelMedium!.copyWith(color: t.onInk),
       ),
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith(

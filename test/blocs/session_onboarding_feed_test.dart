@@ -3,11 +3,11 @@ import 'dart:math';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:let_s_spill/app/init/app_init_cubit.dart';
-import 'package:let_s_spill/core/data/local/local_content_store.dart';
+import '../fakes/local_content_store.dart';
 import 'package:let_s_spill/core/errors/app_exception.dart';
 import 'package:let_s_spill/core/utils/ui_notice.dart';
 import 'package:let_s_spill/features/auth/presentation/session_cubit.dart';
-import 'package:let_s_spill/features/confessions/data/local_confession_repository.dart';
+import '../fakes/local_confession_repository.dart';
 import 'package:let_s_spill/features/confessions/domain/confession.dart';
 import 'package:let_s_spill/features/create_confession/presentation/bloc/create_confession_cubit.dart';
 import 'package:let_s_spill/features/feed/presentation/bloc/feed_bloc.dart';
@@ -23,7 +23,7 @@ Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 5));
 
 void main() {
   group('SessionCubit', () {
-    test('signed out → Google → needs onboarding → ready', () async {
+    test('signed out, Google, needs onboarding, ready', () async {
       final auth = FakeAuthRepository();
       final profiles = FakeProfileRepository(auth);
       final cubit = SessionCubit(auth: auth, profiles: profiles);
@@ -208,18 +208,18 @@ void main() {
     );
 
     blocTest<FeedBloc, FeedState>(
-      'Trending tab + category filter',
+      'Hot tab + category filter',
       build: () => FeedBloc(repository: repo, pageSize: 50),
       act: (bloc) async {
         bloc.add(const FeedStarted());
         await settle();
-        bloc.add(const FeedTabSelected(FeedTab.trending));
+        bloc.add(const FeedTabSelected(FeedTab.hot));
         await settle();
         bloc.add(const FeedCategorySelected('workplace'));
       },
       wait: const Duration(milliseconds: 20),
       verify: (bloc) {
-        expect(bloc.state.tab, FeedTab.trending);
+        expect(bloc.state.tab, FeedTab.hot);
         expect(bloc.state.items, isNotEmpty);
         expect(bloc.state.items.every((c) => c.categoryId == 'workplace'), isTrue);
       },
@@ -288,32 +288,27 @@ void main() {
   });
 
   group('ProfileCubit', () {
-    test('lists own + saved posts and updates preferences', () async {
-      final auth = FakeAuthRepository(signedIn: testUser);
-      final profiles = FakeProfileRepository(auth)
-        ..profiles[testUser.uid] = adultProfile();
+    test('lists own, saved and liked posts, and deletes your own', () async {
       final repo = confessionRepo(await createStore());
       await repo.setSaved('conf-004', saved: true);
+      await repo.setLiked('conf-001', liked: true);
       final mine = await repo.create(
         text: 'My own little secret, here.',
         categoryId: 'life',
         displayName: Confession.anonymousName,
       );
-      UserProfile? pushed;
       final cubit = ProfileCubit(
         profile: adultProfile(),
-        profileRepository: profiles,
         confessionRepository: repo,
-        onProfileUpdated: (p) => pushed = p,
       );
       await cubit.load();
       expect(cubit.state.myConfessions.map((c) => c.id), [mine.id]);
       expect(cubit.state.saved.map((c) => c.id), ['conf-004']);
+      expect(cubit.state.liked.map((c) => c.id), ['conf-001']);
+      expect(cubit.state.karma, 0);
 
-      cubit.toggleCategory('family');
-      expect(cubit.state.hasUnsavedPreferences, isTrue);
-      await cubit.savePreferences();
-      expect(pushed!.preferredCategoryIds, containsAll(['life', 'family']));
+      cubit.selectSection(ProfileSection.liked);
+      expect(cubit.state.current.map((c) => c.id), ['conf-001']);
 
       await cubit.deleteConfession(mine.id);
       expect(cubit.state.myConfessions, isEmpty);
@@ -322,7 +317,7 @@ void main() {
   });
 
   group('AccountDeletionCubit', () {
-    test('re-authenticates, deletes profile, local data and the account', () async {
+    test('re-authenticates, deletes activity, profile and the account', () async {
       final auth = FakeAuthRepository(signedIn: testUser);
       final profiles = FakeProfileRepository(auth)
         ..profiles[testUser.uid] = adultProfile()
@@ -336,7 +331,7 @@ void main() {
         profiles: profiles,
         confessions: repo,
       );
-      await cubit.deleteAccount(); // Not confirmed yet → ignored.
+      await cubit.deleteAccount(); // Not confirmed yet, so ignored.
       expect(auth.reauthCount, 0);
 
       cubit.setConfirmed(true);

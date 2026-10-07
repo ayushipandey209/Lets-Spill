@@ -2,52 +2,67 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
-/// Raw palette. Only referenced from the theme layer — widgets read colours
-/// through [AppTokens] / [ColorScheme] so the design stays consistent.
-abstract final class AppPalette {
-  /// Warm beige page background. Never use pure white.
-  static const beige = Color(0xFFF2E8D8);
+/// Raw palettes. Only referenced from the theme layer; widgets read colours
+/// through [AppTokens] so light and dark mode stay consistent.
+abstract final class LightPalette {
+  /// Warm beige page background.
+  static const background = Color(0xFFF2E8D8);
 
-  /// Slightly darker beige for secondary surfaces (chips, inputs, sheets).
-  static const beigeDeep = Color(0xFFE7D8C3);
+  /// Cards sit slightly lighter than the page, like Reddit's post cards.
+  static const card = Color(0xFFFAF4EA);
 
-  /// Muted beige-grey for borders and dividers.
-  static const beigeGrey = Color(0xFFCBBBA5);
-
-  /// Deep black for text, icons, primary buttons and emphasis.
+  /// Chips, inputs, segmented controls.
+  static const surface = Color(0xFFE9DCC8);
+  static const border = Color(0xFFD6C6AE);
   static const ink = Color(0xFF171717);
 
-  /// Warm, darkened grey-brown for secondary text. ~6.3:1 on [beige].
+  /// Secondary text, about 6.3:1 on [background].
   static const inkMuted = Color(0xFF5C5246);
+  static const skeleton = Color(0xFFE2D3BD);
 
-  /// Placeholder shimmer base for skeletons.
-  static const skeleton = Color(0xFFDDCDB6);
+  /// Muted oxblood used only for errors and destructive actions.
+  static const error = Color(0xFF8A2E22);
 
-  /// Functional error colour: a muted oxblood (~7:1 on [beige]). It is the
-  /// single non-monochrome tone and is used *only* for validation/errors,
-  /// always paired with text or an icon — never as decoration.
-  static const error = Color(0xFF7A2E22);
+  /// Terracotta for likes and highlights (about 4.8:1 on [card]).
+  static const accent = Color(0xFFB4441E);
 }
 
-/// Spacing scale (4-pt grid).
+abstract final class DarkPalette {
+  /// Warm near-black: easier on the eyes than pure black at night.
+  static const background = Color(0xFF121110);
+  static const card = Color(0xFF1B1A18);
+  static const surface = Color(0xFF26231F);
+  static const border = Color(0xFF36322D);
+
+  /// Warm off-white body text (about 15:1 on [background]).
+  static const ink = Color(0xFFEDE6DA);
+
+  /// Secondary text (about 7.6:1 on [background]).
+  static const inkMuted = Color(0xFFB1A898);
+  static const skeleton = Color(0xFF2B2824);
+  static const error = Color(0xFFF08A78);
+  static const accent = Color(0xFFFF8A5C);
+}
+
+/// Spacing scale (4 pt grid).
 abstract final class AppSpacing {
   static const xxs = 4.0;
   static const xs = 8.0;
   static const sm = 12.0;
   static const md = 16.0;
-  static const lg = 24.0;
-  static const xl = 32.0;
-  static const xxl = 48.0;
+  static const lg = 20.0;
+  static const xl = 28.0;
+  static const xxl = 44.0;
 
-  /// Max readable width for content columns on tablets/desktop/web.
+  /// Max readable width for content columns on tablets, desktop and web.
   static const maxContentWidth = 680.0;
 }
 
 /// Corner radii shared across every component.
 abstract final class AppRadii {
   static const sm = 8.0;
-  static const md = 14.0;
-  static const lg = 20.0;
+  static const md = 12.0;
+  static const lg = 16.0;
   static const pill = 999.0;
 
   static const button = BorderRadius.all(Radius.circular(md));
@@ -68,7 +83,9 @@ abstract final class AppMotion {
 @immutable
 class AppTokens extends ThemeExtension<AppTokens> {
   const AppTokens({
+    required this.brightness,
     required this.background,
+    required this.card,
     required this.surface,
     required this.border,
     required this.ink,
@@ -76,34 +93,65 @@ class AppTokens extends ThemeExtension<AppTokens> {
     required this.onInk,
     required this.skeleton,
     required this.error,
+    required this.accent,
     required this.cardElevation,
   });
 
-  static const standard = AppTokens(
-    background: AppPalette.beige,
-    surface: AppPalette.beigeDeep,
-    border: AppPalette.beigeGrey,
-    ink: AppPalette.ink,
-    inkMuted: AppPalette.inkMuted,
-    onInk: AppPalette.beige,
-    skeleton: AppPalette.skeleton,
-    error: AppPalette.error,
+  static const light = AppTokens(
+    brightness: Brightness.light,
+    background: LightPalette.background,
+    card: LightPalette.card,
+    surface: LightPalette.surface,
+    border: LightPalette.border,
+    ink: LightPalette.ink,
+    inkMuted: LightPalette.inkMuted,
+    onInk: LightPalette.background,
+    skeleton: LightPalette.skeleton,
+    error: LightPalette.error,
+    accent: LightPalette.accent,
     cardElevation: 0,
   );
 
+  static const dark = AppTokens(
+    brightness: Brightness.dark,
+    background: DarkPalette.background,
+    card: DarkPalette.card,
+    surface: DarkPalette.surface,
+    border: DarkPalette.border,
+    ink: DarkPalette.ink,
+    inkMuted: DarkPalette.inkMuted,
+    onInk: DarkPalette.background,
+    skeleton: DarkPalette.skeleton,
+    error: DarkPalette.error,
+    accent: DarkPalette.accent,
+    cardElevation: 0,
+  );
+
+  /// Kept for older call sites; same as [light].
+  static const standard = light;
+
+  final Brightness brightness;
   final Color background;
+  final Color card;
   final Color surface;
   final Color border;
   final Color ink;
   final Color inkMuted;
+
+  /// Text and icons placed on an [ink] fill (primary buttons, selected chips).
   final Color onInk;
   final Color skeleton;
   final Color error;
+  final Color accent;
   final double cardElevation;
+
+  bool get isDark => brightness == Brightness.dark;
 
   @override
   AppTokens copyWith({
+    Brightness? brightness,
     Color? background,
+    Color? card,
     Color? surface,
     Color? border,
     Color? ink,
@@ -111,10 +159,13 @@ class AppTokens extends ThemeExtension<AppTokens> {
     Color? onInk,
     Color? skeleton,
     Color? error,
+    Color? accent,
     double? cardElevation,
   }) {
     return AppTokens(
+      brightness: brightness ?? this.brightness,
       background: background ?? this.background,
+      card: card ?? this.card,
       surface: surface ?? this.surface,
       border: border ?? this.border,
       ink: ink ?? this.ink,
@@ -122,6 +173,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
       onInk: onInk ?? this.onInk,
       skeleton: skeleton ?? this.skeleton,
       error: error ?? this.error,
+      accent: accent ?? this.accent,
       cardElevation: cardElevation ?? this.cardElevation,
     );
   }
@@ -130,7 +182,9 @@ class AppTokens extends ThemeExtension<AppTokens> {
   AppTokens lerp(ThemeExtension<AppTokens>? other, double t) {
     if (other is! AppTokens) return this;
     return AppTokens(
+      brightness: t < 0.5 ? brightness : other.brightness,
       background: Color.lerp(background, other.background, t)!,
+      card: Color.lerp(card, other.card, t)!,
       surface: Color.lerp(surface, other.surface, t)!,
       border: Color.lerp(border, other.border, t)!,
       ink: Color.lerp(ink, other.ink, t)!,
@@ -138,6 +192,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
       onInk: Color.lerp(onInk, other.onInk, t)!,
       skeleton: Color.lerp(skeleton, other.skeleton, t)!,
       error: Color.lerp(error, other.error, t)!,
+      accent: Color.lerp(accent, other.accent, t)!,
       cardElevation: lerpDouble(cardElevation, other.cardElevation, t)!,
     );
   }
@@ -145,7 +200,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
 
 extension AppTokensX on BuildContext {
   AppTokens get tokens =>
-      Theme.of(this).extension<AppTokens>() ?? AppTokens.standard;
+      Theme.of(this).extension<AppTokens>() ?? AppTokens.light;
 
   TextTheme get text => Theme.of(this).textTheme;
 }

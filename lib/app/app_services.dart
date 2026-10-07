@@ -1,3 +1,4 @@
+import '../core/analytics/analytics.dart';
 import '../core/config/app_config.dart';
 import '../core/services/share_service.dart';
 import '../features/auth/domain/auth_repository.dart';
@@ -17,6 +18,7 @@ class AppServices {
     required this.reports,
     required this.categories,
     required this.share,
+    this.analytics = const NoopAnalytics(),
   });
 
   final AppConfig config;
@@ -26,4 +28,5 @@ class AppServices {
   final ReportRepository reports;
   final CategoryCatalog categories;
   final ShareService share;
+  final Analytics analytics;
 }

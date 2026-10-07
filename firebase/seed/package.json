@@ -1,0 +1,13 @@
+{
+  "name": "lets-spill-seed",
+  "private": true,
+  "type": "module",
+  "description": "Loads the sample confessions into Cloud Firestore (one time).",
+  "scripts": {
+    "seed": "node seed.mjs",
+    "seed:emulator": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 node seed.mjs --project demo-lets-spill"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

@@ -1,6 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Minimal async key-value persistence used by mock mode.
+/// Minimal async key-value persistence (device settings).
 abstract interface class KeyValueStore {
   Future<String?> read(String key);
   Future<void> write(String key, String value);
@@ -8,7 +8,7 @@ abstract interface class KeyValueStore {
 }
 
 /// Device storage via `shared_preferences` (NSUserDefaults / SharedPreferences
-/// / localStorage on web). Only non-secret demo data is ever written here.
+/// / localStorage on web). Only non-secret preferences are written here.
 class SharedPreferencesStore implements KeyValueStore {
   SharedPreferencesStore._(this._prefs);
 
@@ -49,5 +49,14 @@ class InMemoryKeyValueStore implements KeyValueStore {
   @override
   Future<void> delete(String key) async {
     _data.remove(key);
+  }
+}
+
+/// Opens device storage, falling back to memory if it is unavailable.
+Future<KeyValueStore> openDeviceStore() async {
+  try {
+    return await SharedPreferencesStore.create();
+  } catch (_) {
+    return InMemoryKeyValueStore();
   }
 }

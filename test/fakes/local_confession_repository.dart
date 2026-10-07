@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import '../../../core/data/local/local_content_store.dart';
-import '../../../core/errors/app_exception.dart';
-import '../domain/confession.dart';
-import '../domain/confession_repository.dart';
+import 'package:let_s_spill/core/errors/app_exception.dart';
+import 'package:let_s_spill/features/confessions/domain/confession.dart';
+import 'package:let_s_spill/features/confessions/domain/confession_repository.dart';
+import 'package:let_s_spill/features/confessions/domain/ranking.dart';
 
-/// Confessions from bundled JSON + on-device activity for the signed-in user.
+import 'local_content_store.dart';
+
+/// In-memory [ConfessionRepository] for tests. Same behaviour as the
+/// Firestore implementation: counters move with activity, one like / view /
+/// reaction per reader.
 class LocalConfessionRepository implements ConfessionRepository {
   LocalConfessionRepository(
     this._store, {
@@ -39,16 +43,12 @@ class LocalConfessionRepository implements ConfessionRepository {
     });
   }
 
-  /// Engagement weighted by recency (a simple "hot" score).
-  double trendingScore(Confession c) {
-    final hours = math.max(
-      0,
-      _store.now().difference(c.createdAt).inMinutes / 60,
-    );
-    final engagement =
-        c.likeCount + c.totalReactions * 1.5 + c.viewCount * 0.05;
-    return engagement / math.pow(hours + 2, 1.2);
-  }
+  /// Same ranking the Firestore implementation stores on each document.
+  double hotScore(Confession c) => Ranking.hotScore(
+    createdAt: c.createdAt,
+    likes: c.likeCount,
+    reactions: c.totalReactions,
+  );
 
   @override
   Future<ConfessionPage> fetchPage(
@@ -59,8 +59,15 @@ class LocalConfessionRepository implements ConfessionRepository {
     await _store.simulateLatency();
     final offset = cursor is int ? cursor : 0;
     final items = _visible(query).toList();
-    if (query.sort == FeedSort.trending) {
-      items.sort((a, b) => trendingScore(b).compareTo(trendingScore(a)));
+    if (!query.hasSearch) {
+      switch (query.sort) {
+        case FeedSort.latest:
+          break;
+        case FeedSort.hot:
+          items.sort((a, b) => hotScore(b).compareTo(hotScore(a)));
+        case FeedSort.top:
+          items.sort((a, b) => b.likeCount.compareTo(a.likeCount));
+      }
     }
     final end = math.min(offset + limit, items.length);
     final page = offset >= items.length
@@ -115,6 +122,7 @@ class LocalConfessionRepository implements ConfessionRepository {
     required String text,
     required String categoryId,
     required String displayName,
+    bool mature = false,
   }) async {
     final me = _store.requireActivity();
     final trimmed = text.trim();
@@ -134,6 +142,7 @@ class LocalConfessionRepository implements ConfessionRepository {
       text: trimmed,
       createdAt: _store.now().toUtc(),
       authorDisplayName: name,
+      mature: mature,
     );
     _store.confessions.insert(0, confession);
     me.owned.add(confession.id);
@@ -198,14 +207,36 @@ class LocalConfessionRepository implements ConfessionRepository {
     final me = _store.requireActivity();
     final current = _require(id);
     if (me.likes.contains(id) == liked) return current;
+    final Confession updated;
     if (liked) {
       me.likes.add(id);
-      return _commit(current.copyWith(likeCount: current.likeCount + 1));
+      updated = await _commit(current.copyWith(likeCount: current.likeCount + 1));
+    } else {
+      me.likes.remove(id);
+      updated = await _commit(
+        current.copyWith(likeCount: math.max(0, current.likeCount - 1)),
+      );
     }
-    me.likes.remove(id);
-    return _commit(
-      current.copyWith(likeCount: math.max(0, current.likeCount - 1)),
-    );
+    _changes.add(ConfessionLikedChanged(updated, liked: liked));
+    return updated;
+  }
+
+  @override
+  Future<Set<String>> likedIds(Iterable<String> ids) async {
+    final me = _store.requireActivity();
+    return ids.where(me.likes.contains).toSet();
+  }
+
+  @override
+  Future<List<Confession>> fetchLiked() async {
+    final me = _store.requireActivity();
+    await _store.simulateLatency();
+    return me.likes
+        .toList()
+        .reversed
+        .map(_store.find)
+        .whereType<Confession>()
+        .toList(growable: false);
   }
 
   @override
@@ -241,8 +272,12 @@ class LocalConfessionRepository implements ConfessionRepository {
     final current = _require(id);
     if (me.saved.contains(id) == saved) return;
     saved ? me.saved.add(id) : me.saved.remove(id);
+    final updated = current.copyWith(
+      saveCount: math.max(0, current.saveCount + (saved ? 1 : -1)),
+    );
+    _store.replace(updated);
     await _store.persist();
-    _changes.add(ConfessionSavedChanged(current, saved: saved));
+    _changes.add(ConfessionSavedChanged(updated, saved: saved));
   }
 
   @override
@@ -289,6 +324,14 @@ class LocalConfessionRepository implements ConfessionRepository {
     for (final id in me.likes) {
       final c = _store.find(id);
       if (c != null) _store.replace(c.copyWith(likeCount: math.max(0, c.likeCount - 1)));
+    }
+    for (final id in me.saved) {
+      final c = _store.find(id);
+      if (c != null) _store.replace(c.copyWith(saveCount: math.max(0, c.saveCount - 1)));
+    }
+    for (final id in me.views) {
+      final c = _store.find(id);
+      if (c != null) _store.replace(c.copyWith(viewCount: math.max(0, c.viewCount - 1)));
     }
     me.reactions.forEach((id, reaction) {
       final c = _store.find(id);

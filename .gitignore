@@ -58,3 +58,4 @@ ui-debug.log
 
 # Node (only used for the optional Firestore rules emulator tests)
 firebase/rules-tests/node_modules/
+.claude_tmp/

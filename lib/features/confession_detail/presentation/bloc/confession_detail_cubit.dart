@@ -4,6 +4,7 @@ import 'dart:ui' show Rect;
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/analytics/analytics.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/services/share_service.dart';
@@ -27,7 +28,7 @@ enum ViewTrackingStatus {
   /// This visit produced a new counted view.
   counted,
 
-  /// This reader was already counted for this confession — nothing to do.
+  /// This reader was already counted for this confession; nothing to do.
   alreadyCounted,
 
   /// The write failed. We do not retry automatically (no write loops).
@@ -111,8 +112,8 @@ class ConfessionDetailState extends Equatable {
 /// confession on screen, with the app in the foreground, for
 /// [viewThreshold] *continuously*. Leaving the screen or backgrounding the
 /// app cancels the pending timer (it restarts from zero on return). At most
-/// one view is ever counted per reader per confession — enforced here and
-/// by the repository (`hasViewed` / `recordView`). Exactly one write is made
+/// one view is ever counted per reader per confession, enforced here, by the
+/// repository (`hasViewed` / `recordView`) and by the security rules. Exactly one write is made
 /// per qualifying visit; there are no periodic timer writes.
 class ConfessionDetailCubit extends Cubit<ConfessionDetailState> {
   ConfessionDetailCubit({
@@ -121,8 +122,10 @@ class ConfessionDetailCubit extends Cubit<ConfessionDetailState> {
     required this.confessionId,
     Confession? initial,
     this.viewThreshold = const Duration(seconds: 15),
+    Analytics analytics = const NoopAnalytics(),
   }) : _repository = repository,
        _share = shareService,
+       _analytics = analytics,
        super(
          ConfessionDetailState(
            status: initial == null ? DetailStatus.loading : DetailStatus.ready,
@@ -132,6 +135,7 @@ class ConfessionDetailCubit extends Cubit<ConfessionDetailState> {
 
   final ConfessionRepository _repository;
   final ShareService _share;
+  final Analytics _analytics;
   final String confessionId;
   final Duration viewThreshold;
 
@@ -231,6 +235,12 @@ class ConfessionDetailCubit extends Cubit<ConfessionDetailState> {
     emit(state.copyWith(viewStatus: ViewTrackingStatus.recording));
     try {
       final counted = await _repository.recordView(confessionId);
+      if (counted) {
+        _analytics.log(AnalyticsEvents.confessionView, {
+          'confession_id': confessionId,
+          'category': state.confession?.categoryId ?? '',
+        });
+      }
       if (isClosed) return;
       final current = state.confession;
       emit(
@@ -270,6 +280,14 @@ class ConfessionDetailCubit extends Cubit<ConfessionDetailState> {
         confessionId,
         liked: wantLiked,
       );
+      _analytics.log(
+        wantLiked ? AnalyticsEvents.like : AnalyticsEvents.unlike,
+        {
+          'confession_id': confessionId,
+          'category': updated.categoryId,
+          'surface': 'detail',
+        },
+      );
       if (isClosed) return;
       emit(state.copyWith(confession: updated, likeInFlight: false));
     } catch (e) {
@@ -298,6 +316,11 @@ class ConfessionDetailCubit extends Cubit<ConfessionDetailState> {
     final next = previous == reaction ? null : reaction;
     try {
       final updated = await _repository.setReaction(confessionId, next);
+      _analytics.log(AnalyticsEvents.react, {
+        'confession_id': confessionId,
+        'reaction': next?.name ?? 'none',
+        'category': updated.categoryId,
+      });
       if (isClosed) return;
       emit(state.copyWith(confession: updated, reaction: () => next));
     } catch (e) {
@@ -317,6 +340,10 @@ class ConfessionDetailCubit extends Cubit<ConfessionDetailState> {
     emit(state.copyWith(isSaved: !wasSaved));
     try {
       await _repository.setSaved(confessionId, saved: !wasSaved);
+      _analytics.log(
+        wasSaved ? AnalyticsEvents.unsave : AnalyticsEvents.save,
+        {'confession_id': confessionId, 'surface': 'detail'},
+      );
       if (!isClosed) {
         emit(
           state.copyWith(
@@ -346,6 +373,11 @@ class ConfessionDetailCubit extends Cubit<ConfessionDetailState> {
         subject: 'A confession from ${AppConfig.appName}',
         origin: origin,
       );
+      _analytics.log(AnalyticsEvents.share, {
+        'content_type': 'confession',
+        'item_id': confessionId,
+        'source': 'detail',
+      });
     } catch (_) {
       if (!isClosed) {
         emit(

@@ -1,24 +1,35 @@
 rules_version = '2';
 
 // =============================================================================
-// Let's Spill — Cloud Firestore Security Rules
+// Let's Spill: Cloud Firestore Security Rules
 //
-// What lives in Firestore right now:
-//   users/{uid}               private profile (anonymous username, age range,
-//                             reading preferences). Owner-only.
-//   usernames/{nameLower}     { uid } uniqueness claim for anonymous handles.
-//   reports/{cid}_{uid}       create-only moderation reports.
+//   users/{uid}                          private profile + settings (owner only)
+//     posts/{cid}                        confessions this user wrote
+//     likes/{cid}                        confessions this user liked
+//     reactions/{cid}                    this user's reaction per confession
+//     saves/{cid}                        this user's bookmarks
+//   usernames/{nameLower}                { uid } claim for anonymous handles
+//   confessions/{cid}                    public post + counters
+//     likes/{uid}                        one per person who liked it
+//     reactions/{uid}                    one per person who reacted
+//     views/{uid}                        one per qualified reader
+//   confessionAuthors/{cid}              { uid } private author mapping
+//   reports/{cid}_{uid}                  create-only moderation reports
 //
-// Confession content is bundled JSON for now, so there are no confession
-// collections yet. Everything else is denied.
+// Integrity: every counter on a confession may only move by exactly one, in
+// the same write that creates or deletes the matching activity document. So
+// likeCount always equals the number of likes/{uid} documents, and so on.
 //
-// Keep categoryIds() in sync with assets/mock/categories.json and the
-// username pattern in sync with lib/features/onboarding/domain/username_generator.dart.
+// Keep in sync with:
+//   * categoryIds()  and assets/mock/categories.json
+//   * Ranking        in lib/features/confessions/domain/ranking.dart
+//   * username regex in lib/features/onboarding/domain/username_generator.dart
 // =============================================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---------------------------------------------------------------- helpers
     function signedIn() {
       return request.auth != null;
     }
@@ -35,6 +46,10 @@ service cloud.firestore {
       return ['teen', 'young', 'adult', 'mid', 'senior'];
     }
 
+    function reactionNames() {
+      return ['same', 'hugs', 'wow', 'oof'];
+    }
+
     function claimPath(nameLower) {
       return /databases/$(database)/documents/usernames/$(nameLower);
     }
@@ -43,12 +58,69 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(uid);
     }
 
+    function confessionPath(cid) {
+      return /databases/$(database)/documents/confessions/$(cid);
+    }
+
+    function myActivityPath(kind, cid) {
+      return /databases/$(database)/documents/users/$(request.auth.uid)/$(kind)/$(cid);
+    }
+
+    function confessionActivityPath(cid, kind) {
+      return /databases/$(database)/documents/confessions/$(cid)/$(kind)/$(request.auth.uid);
+    }
+
+    // Readers aged 13 to 17 never get 18+ posts, even with a crafted query.
+    function isAdultReader() {
+      return get(userPath(request.auth.uid)).data.ageRange != 'teen';
+    }
+
+    function readable(data) {
+      return data.status == 'published'
+        && (data.mature == false || isAdultReader());
+    }
+
+    // Ranking: hot = log10(max(likes + reactions, 1)) + (seconds - 1704067200) / 45000
+    // One like or reaction changes it by at most log10(2) = 0.301. The score
+    // stored at create time used the client clock (allowed to be up to 0.1
+    // off, see validNew), so the first recompute may also absorb that drift.
+    function hotStepOk(before, after) {
+      return after.hotScore is number
+        && math.abs(after.hotScore - before.hotScore) <= 0.41;
+    }
+
+    // Only these keys changed, nothing else.
+    function onlyChanged(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // The confession's counter `field` moved by `delta` in this write.
+    function counterMoved(cid, field, delta) {
+      return getAfter(confessionPath(cid)).data[field]
+          == get(confessionPath(cid)).data[field] + delta;
+    }
+
+    function confessionGone(cid) {
+      return !existsAfter(confessionPath(cid));
+    }
+
     // ------------------------------------------------------------------ users
     match /users/{uid} {
+      function validSettings(d) {
+        return !('settings' in d) || (d.settings is map && d.settings.size() <= 20);
+      }
+
+      function validPrefs(d) {
+        return d.preferredCategoryIds is list
+          && d.preferredCategoryIds.size() >= 1
+          && d.preferredCategoryIds.size() <= 6
+          && d.preferredCategoryIds.hasOnly(categoryIds());
+      }
+
       function validProfile(d) {
         return d.keys().hasOnly(['username', 'usernameLower', 'ageRange',
                                  'preferredCategoryIds', 'onboardingComplete',
-                                 'createdAt', 'updatedAt'])
+                                 'settings', 'createdAt', 'updatedAt'])
           && d.keys().hasAll(['username', 'usernameLower', 'ageRange',
                               'preferredCategoryIds', 'onboardingComplete',
                               'createdAt', 'updatedAt'])
@@ -56,10 +128,8 @@ service cloud.firestore {
           && d.username.matches('^[A-Za-z]{6,24}[0-9]{2}$')
           && d.usernameLower == d.username.lower()
           && d.ageRange in ageRanges()
-          && d.preferredCategoryIds is list
-          && d.preferredCategoryIds.size() >= 1
-          && d.preferredCategoryIds.size() <= 6
-          && d.preferredCategoryIds.hasOnly(categoryIds())
+          && validPrefs(d)
+          && validSettings(d)
           && d.onboardingComplete == true
           && d.updatedAt == request.time
           // The username must be claimed by this user in the same write.
@@ -73,22 +143,71 @@ service cloud.firestore {
         && validProfile(request.resource.data)
         && request.resource.data.createdAt == request.time;
 
-      // After onboarding, only reading preferences can change.
+      // After onboarding, only reading preferences and settings can change.
+      // Username and age range are fixed.
       allow update: if isUser(uid)
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['preferredCategoryIds', 'updatedAt'])
-        && request.resource.data.preferredCategoryIds is list
-        && request.resource.data.preferredCategoryIds.size() >= 1
-        && request.resource.data.preferredCategoryIds.size() <= 6
-        && request.resource.data.preferredCategoryIds.hasOnly(categoryIds())
+        && onlyChanged(['preferredCategoryIds', 'settings', 'updatedAt'])
+        && validPrefs(request.resource.data)
+        && validSettings(request.resource.data)
         && request.resource.data.updatedAt == request.time;
 
       allow delete: if isUser(uid);
+
+      // Private mirrors of the user's own activity. The matching counter on
+      // the confession must move in the same write (unless it was deleted).
+      match /posts/{cid} {
+        allow read: if isUser(uid);
+        allow create: if isUser(uid)
+          && request.resource.data.keys().hasOnly(['confessionId', 'createdAt'])
+          && request.resource.data.confessionId == cid
+          && request.resource.data.createdAt == request.time
+          && existsAfter(confessionPath(cid))
+          && !exists(confessionPath(cid));
+        allow update: if false;
+        allow delete: if isUser(uid);
+      }
+
+      match /likes/{cid} {
+        allow read: if isUser(uid);
+        allow create: if isUser(uid)
+          && request.resource.data.keys().hasOnly(['confessionId', 'createdAt'])
+          && request.resource.data.confessionId == cid
+          && request.resource.data.createdAt == request.time
+          && existsAfter(confessionActivityPath(cid, 'likes'));
+        allow update: if false;
+        allow delete: if isUser(uid)
+          && (confessionGone(cid) || !existsAfter(confessionActivityPath(cid, 'likes')));
+      }
+
+      match /reactions/{cid} {
+        allow read: if isUser(uid);
+        allow create, update: if isUser(uid)
+          && request.resource.data.keys().hasOnly(['confessionId', 'reaction', 'createdAt'])
+          && request.resource.data.confessionId == cid
+          && request.resource.data.reaction in reactionNames()
+          && request.resource.data.createdAt == request.time
+          && getAfter(confessionActivityPath(cid, 'reactions')).data.reaction
+               == request.resource.data.reaction;
+        allow delete: if isUser(uid)
+          && (confessionGone(cid) || !existsAfter(confessionActivityPath(cid, 'reactions')));
+      }
+
+      match /saves/{cid} {
+        allow read: if isUser(uid);
+        allow create: if isUser(uid)
+          && request.resource.data.keys().hasOnly(['confessionId', 'createdAt'])
+          && request.resource.data.confessionId == cid
+          && request.resource.data.createdAt == request.time
+          && counterMoved(cid, 'saveCount', 1);
+        allow update: if false;
+        allow delete: if isUser(uid)
+          && (!exists(confessionPath(cid)) || counterMoved(cid, 'saveCount', -1));
+      }
     }
 
     // -------------------------------------------------------------- usernames
-    // Public to signed-in users only so the app can check availability.
-    // Holds nothing but the owner's uid.
+    // Readable by signed-in users so the app can check availability. Holds
+    // nothing but the owner's uid.
     match /usernames/{nameLower} {
       allow get: if signedIn();
       allow list: if false;
@@ -104,8 +223,209 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
+    // ------------------------------------------------------------ confessions
+    match /confessions/{cid} {
+      function isAuthor() {
+        return exists(myActivityPath('posts', cid));
+      }
+
+      function validNew(d) {
+        return d.keys().hasOnly(['text', 'categoryId', 'mature', 'status',
+                                 'authorDisplayName', 'createdAt', 'likeCount',
+                                 'viewCount', 'saveCount', 'reactionCounts',
+                                 'reactionTotal', 'hotScore', 'searchTokens'])
+          && d.keys().hasAll(['text', 'categoryId', 'mature', 'status',
+                              'authorDisplayName', 'createdAt', 'likeCount',
+                              'viewCount', 'saveCount', 'reactionCounts',
+                              'reactionTotal', 'hotScore', 'searchTokens'])
+          && d.text is string
+          && d.text.trim().size() >= 10
+          && d.text.size() <= 2000
+          && d.categoryId in categoryIds()
+          && d.mature is bool
+          && (d.mature == false || isAdultReader())
+          && d.status == 'published'
+          && (d.authorDisplayName == 'Anonymous'
+              || d.authorDisplayName == '@' + get(userPath(request.auth.uid)).data.username)
+          && d.createdAt == request.time
+          && d.likeCount == 0
+          && d.viewCount == 0
+          && d.saveCount == 0
+          && d.reactionCounts == {'same': 0, 'hugs': 0, 'wow': 0, 'oof': 0}
+          && d.reactionTotal == 0
+          && d.hotScore is number
+          && math.abs(d.hotScore
+               - (float(request.time.toMillis()) / 1000.0 - 1704067200.0) / 45000.0) < 0.1
+          && d.searchTokens is list
+          && d.searchTokens.size() <= 60;
+      }
+
+      // Before / after values of this reader's reaction on this confession.
+      function reactionBefore() {
+        return exists(confessionActivityPath(cid, 'reactions'))
+          ? get(confessionActivityPath(cid, 'reactions')).data.reaction
+          : null;
+      }
+
+      function reactionAfter() {
+        return existsAfter(confessionActivityPath(cid, 'reactions'))
+          ? getAfter(confessionActivityPath(cid, 'reactions')).data.reaction
+          : null;
+      }
+
+      function reactionCountOk(name, before, after) {
+        return request.resource.data.reactionCounts[name]
+          == resource.data.reactionCounts[name]
+             - (before == name ? 1 : 0)
+             + (after == name ? 1 : 0);
+      }
+
+      function likeChange() {
+        return onlyChanged(['likeCount', 'hotScore'])
+          && hotStepOk(resource.data, request.resource.data)
+          && (
+            (request.resource.data.likeCount == resource.data.likeCount + 1
+              && !exists(confessionActivityPath(cid, 'likes'))
+              && existsAfter(confessionActivityPath(cid, 'likes')))
+            ||
+            (request.resource.data.likeCount == resource.data.likeCount - 1
+              && exists(confessionActivityPath(cid, 'likes'))
+              && !existsAfter(confessionActivityPath(cid, 'likes')))
+          );
+      }
+
+      function reactionChange() {
+        let before = reactionBefore();
+        let after = reactionAfter();
+        return onlyChanged(['reactionCounts', 'reactionTotal', 'hotScore'])
+          && hotStepOk(resource.data, request.resource.data)
+          && before != after
+          && request.resource.data.reactionCounts.keys().hasOnly(reactionNames())
+          && reactionCountOk('same', before, after)
+          && reactionCountOk('hugs', before, after)
+          && reactionCountOk('wow', before, after)
+          && reactionCountOk('oof', before, after)
+          && request.resource.data.reactionTotal
+               == resource.data.reactionTotal
+                  - (before == null ? 0 : 1)
+                  + (after == null ? 0 : 1);
+      }
+
+      function viewChange() {
+        return onlyChanged(['viewCount'])
+          && (
+            (request.resource.data.viewCount == resource.data.viewCount + 1
+              && !exists(confessionActivityPath(cid, 'views'))
+              && existsAfter(confessionActivityPath(cid, 'views')))
+            ||
+            (request.resource.data.viewCount == resource.data.viewCount - 1
+              && exists(confessionActivityPath(cid, 'views'))
+              && !existsAfter(confessionActivityPath(cid, 'views')))
+          );
+      }
+
+      function saveChange() {
+        return onlyChanged(['saveCount'])
+          && (
+            (request.resource.data.saveCount == resource.data.saveCount + 1
+              && !exists(myActivityPath('saves', cid))
+              && existsAfter(myActivityPath('saves', cid)))
+            ||
+            (request.resource.data.saveCount == resource.data.saveCount - 1
+              && exists(myActivityPath('saves', cid))
+              && !existsAfter(myActivityPath('saves', cid)))
+          );
+      }
+
+      // Authors can always open their own posts (even if hidden later).
+      // Reading a deleted id returns "not found" instead of an error.
+      allow get: if signedIn()
+        && (resource == null || readable(resource.data) || isAuthor());
+
+      // Feed queries must filter on status == 'published' and, for younger
+      // readers, mature == false.
+      allow list: if signedIn() && readable(resource.data);
+
+      allow create: if signedIn()
+        && validNew(request.resource.data)
+        && getAfter(/databases/$(database)/documents/confessionAuthors/$(cid)).data.uid
+             == request.auth.uid
+        && existsAfter(myActivityPath('posts', cid));
+
+      allow update: if signedIn()
+        && readable(resource.data)
+        && (likeChange() || reactionChange() || viewChange() || saveChange());
+
+      allow delete: if signedIn() && isAuthor();
+
+      // One document per reader. Counters move in the same write.
+      match /likes/{likerUid} {
+        allow get: if isUser(likerUid);
+        allow list: if false;
+        allow create: if isUser(likerUid)
+          && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+          && request.resource.data.uid == likerUid
+          && request.resource.data.createdAt == request.time
+          && counterMoved(cid, 'likeCount', 1)
+          && existsAfter(myActivityPath('likes', cid));
+        allow update: if false;
+        allow delete: if isUser(likerUid)
+          && (confessionGone(cid) || counterMoved(cid, 'likeCount', -1));
+      }
+
+      match /reactions/{reactorUid} {
+        allow get: if isUser(reactorUid);
+        allow list: if false;
+        allow create, update: if isUser(reactorUid)
+          && request.resource.data.keys().hasOnly(['uid', 'reaction', 'createdAt'])
+          && request.resource.data.uid == reactorUid
+          && request.resource.data.reaction in reactionNames()
+          && request.resource.data.createdAt == request.time
+          && getAfter(confessionPath(cid)).data.reactionCounts[request.resource.data.reaction]
+               > get(confessionPath(cid)).data.reactionCounts[request.resource.data.reaction];
+        allow delete: if isUser(reactorUid)
+          && (confessionGone(cid)
+              || counterMoved(cid, 'reactionTotal', -1)
+              || existsAfter(confessionActivityPath(cid, 'reactions')));
+      }
+
+      match /views/{viewerUid} {
+        allow get: if isUser(viewerUid);
+        allow list: if false;
+        allow create: if isUser(viewerUid)
+          && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+          && request.resource.data.uid == viewerUid
+          && request.resource.data.createdAt == request.time
+          && counterMoved(cid, 'viewCount', 1);
+        allow update: if false;
+        allow delete: if isUser(viewerUid)
+          && (confessionGone(cid) || counterMoved(cid, 'viewCount', -1));
+      }
+    }
+
+    // Account deletion finds a reader's views with a collection group query.
+    match /{path=**}/views/{viewerUid} {
+      allow list: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // ------------------------------------------------------- author mapping
+    // Private link from a confession to its author. Only the author (and
+    // moderators via the Admin SDK) can read it.
+    match /confessionAuthors/{cid} {
+      allow get: if signedIn() && resource.data.uid == request.auth.uid;
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && existsAfter(confessionPath(cid))
+        && !exists(confessionPath(cid));
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
     // ---------------------------------------------------------------- reports
-    // Deterministic id "<confessionId>_<uid>" ⇒ one report per user per post.
+    // Deterministic id "<confessionId>_<uid>": one report per user per post.
     match /reports/{reportId} {
       allow get: if signedIn()
         && reportId.matches('^[A-Za-z0-9-]+_' + request.auth.uid + '$');

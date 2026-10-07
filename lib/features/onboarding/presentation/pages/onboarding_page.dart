@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../app/theme/app_tokens.dart';
+import '../../../../core/analytics/analytics.dart';
 import '../../../../core/utils/ui_notice.dart';
 import '../../../../core/widgets/common.dart';
 import '../../../auth/presentation/session_cubit.dart';
@@ -10,7 +11,7 @@ import '../../../profile/domain/profile_repository.dart';
 import '../../../profile/domain/user_profile.dart';
 import '../bloc/onboarding_cubit.dart';
 
-/// Post-sign-in onboarding: anonymous username → interests → age range.
+/// Onboarding after sign-in: anonymous username, then interests, then age.
 /// Every answer is a tap; there is no text input anywhere.
 class OnboardingPage extends StatelessWidget {
   const OnboardingPage({super.key});
@@ -20,7 +21,14 @@ class OnboardingPage extends StatelessWidget {
     return BlocProvider(
       create: (context) =>
           OnboardingCubit(profiles: context.read<ProfileRepository>()),
-      child: const OnboardingView(),
+      child: BlocListener<OnboardingCubit, OnboardingState>(
+        listenWhen: (p, c) => p.step != c.step,
+        listener: (context, state) => context.read<Analytics>().log(
+          AnalyticsEvents.onboardingStep,
+          {'step': state.step.name},
+        ),
+        child: const OnboardingView(),
+      ),
     );
   }
 }
@@ -41,8 +49,13 @@ class OnboardingView extends StatelessWidget {
       listenWhen: (p, c) =>
           p.status != c.status || p.errorMessage != c.errorMessage,
       listener: (context, state) {
+        final analytics = context.read<Analytics>();
         final profile = state.profile;
         if (state.status == SubmitStatus.success && profile != null) {
+          analytics.log(AnalyticsEvents.signUp, {
+            'age_range': profile.ageRange.name,
+            'categories': profile.preferredCategoryIds.length,
+          });
           context.read<SessionCubit>().onboardingCompleted(profile);
           showMessage(context, 'Welcome, ${profile.handle}.');
         }
@@ -225,7 +238,7 @@ class ChoiceTile extends StatelessWidget {
         duration: AppMotion.fast,
         curve: AppMotion.curve,
         decoration: BoxDecoration(
-          color: selected ? t.ink : t.background,
+          color: selected ? t.ink : t.card,
           borderRadius: AppRadii.button,
           border: Border.all(color: selected ? t.ink : t.border, width: 1.2),
         ),
@@ -305,7 +318,7 @@ class _UsernameStep extends StatelessWidget {
           child: Text(
             'Stay anonymous. These names are randomly generated, so nobody can '
             'trace them back to you. Your Google name and email are never '
-            'shown — and you can always post as plain "Anonymous".',
+            'shown, and you can always post as plain "Anonymous".',
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -354,7 +367,7 @@ class _InterestsStep extends StatelessWidget {
     return ListView(
       children: [
         Text(
-          'Pick as many as you like. Your "For you" feed starts here — you can '
+          'Pick as many as you like. Your "For you" feed starts here, and you can '
           'change it later.',
           style: context.text.bodyMedium!.copyWith(
             color: context.tokens.inkMuted,
@@ -387,7 +400,7 @@ class _AgeStep extends StatelessWidget {
     return ListView(
       children: [
         Text(
-          'We only keep your age range — never your birthday.',
+          'We only keep your age range, never your birthday.',
           style: context.text.bodyMedium!.copyWith(
             color: context.tokens.inkMuted,
           ),

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_tokens.dart';
+import '../../../../core/analytics/analytics.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/utils/ui_notice.dart';
@@ -11,6 +12,8 @@ import '../../../auth/presentation/session_cubit.dart';
 import '../../../categories/domain/category.dart';
 import '../../../confessions/domain/confession_repository.dart';
 import '../../../confessions/presentation/confession_widgets.dart';
+import '../../../settings/domain/app_settings.dart';
+import '../../../settings/presentation/settings_cubit.dart';
 import '../bloc/create_confession_cubit.dart';
 
 class CreateConfessionPage extends StatelessWidget {
@@ -19,13 +22,22 @@ class CreateConfessionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final config = context.read<AppConfig>();
+    final profile = context.read<SessionCubit>().state.profile;
+    final settings = context.read<SettingsCubit>().state;
     return BlocProvider(
-      create: (context) => CreateConfessionCubit(
-        repository: context.read<ConfessionRepository>(),
-        maxLength: config.maxConfessionLength,
-        minLength: config.minConfessionLength,
-        handle: context.read<SessionCubit>().state.profile?.handle,
-      ),
+      create: (context) {
+        final analytics = context.read<Analytics>()
+          ..log(AnalyticsEvents.createStart);
+        return CreateConfessionCubit(
+          repository: context.read<ConfessionRepository>(),
+          maxLength: config.maxConfessionLength,
+          minLength: config.minConfessionLength,
+          handle: profile?.handle,
+          canMarkMature: profile?.canSeeMature ?? false,
+          postAsHandle: settings.postIdentity == PostIdentity.handle,
+          analytics: analytics,
+        );
+      },
       child: const CreateConfessionView(),
     );
   }
@@ -78,7 +90,7 @@ class _CreateConfessionViewState extends State<CreateConfessionView> {
       listenWhen: (p, c) => p.status != c.status,
       listener: (context, state) {
         if (state.status == SubmitStatus.success) {
-          showMessage(context, 'Spilled. Your confession is live — anonymously.');
+          showMessage(context, 'Spilled. Your confession is live.');
           Navigator.of(context).pop(state.created);
         }
       },
@@ -91,7 +103,11 @@ class _CreateConfessionViewState extends State<CreateConfessionView> {
           onPopInvokedWithResult: (didPop, _) async {
             if (didPop || state.isSubmitting) return;
             final navigator = Navigator.of(context);
-            if (await _confirmDiscard() && mounted) navigator.pop();
+            final analytics = context.read<Analytics>();
+            if (await _confirmDiscard() && mounted) {
+              analytics.log(AnalyticsEvents.createDiscard);
+              navigator.pop();
+            }
           },
           child: Scaffold(
             appBar: AppBar(
@@ -123,6 +139,7 @@ class _CreateConfessionViewState extends State<CreateConfessionView> {
                             SelectableCategoryChip(
                               key: ValueKey('create-${c.id}'),
                               label: c.name,
+                              icon: categoryIcon(c.id),
                               selected: state.categoryId == c.id,
                               onTap: state.isSubmitting
                                   ? null
@@ -146,8 +163,8 @@ class _CreateConfessionViewState extends State<CreateConfessionView> {
                         controller: _controller,
                         enabled: !state.isSubmitting,
                         onChanged: cubit.textChanged,
-                        minLines: 8,
-                        maxLines: 16,
+                        minLines: 7,
+                        maxLines: 14,
                         keyboardType: TextInputType.multiline,
                         textCapitalization: TextCapitalization.sentences,
                         style: context.text.bodyLarge,
@@ -194,6 +211,38 @@ class _CreateConfessionViewState extends State<CreateConfessionView> {
                             ),
                         ],
                       ),
+                      if (cubit.canMarkMature) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        MergeSemantics(
+                          child: Material(
+                            color: t.card,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: AppRadii.button,
+                              side: BorderSide(color: t.border),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: SwitchListTile(
+                              key: const ValueKey('create-mature'),
+                              value: state.mature,
+                              onChanged: state.isSubmitting
+                                  ? null
+                                  : cubit.setMature,
+                              secondary: const Icon(
+                                Icons.eighteen_up_rating_outlined,
+                              ),
+                              title: Text(
+                                'Mark as 18+',
+                                style: context.text.titleSmall,
+                              ),
+                              subtitle: Text(
+                                'Adult themes. Hidden from readers under 18 '
+                                'and blurred for others who choose that.',
+                                style: context.text.bodySmall,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: AppSpacing.lg),
                       NoteBox(
                         icon: Icons.privacy_tip_outlined,

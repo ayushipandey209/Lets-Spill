@@ -34,12 +34,11 @@ class ContentWidth extends StatelessWidget {
 EdgeInsets responsiveHorizontalPadding(
   BuildContext context, {
   double maxWidth = AppSpacing.maxContentWidth,
+  double side = AppSpacing.lg,
 }) {
   final width = MediaQuery.sizeOf(context).width;
-  final side = width > maxWidth + AppSpacing.lg * 2
-      ? (width - maxWidth) / 2
-      : AppSpacing.lg;
-  return EdgeInsets.symmetric(horizontal: side);
+  final gutter = width > maxWidth + side * 2 ? (width - maxWidth) / 2 : side;
+  return EdgeInsets.symmetric(horizontal: gutter);
 }
 
 /// Black filled button that swaps its label for a spinner while busy and
@@ -168,7 +167,7 @@ class SectionTitle extends StatelessWidget {
   }
 }
 
-/// A quiet bordered note — reminders, privacy notes, demo-mode notice.
+/// A quiet bordered note: reminders, privacy notes, setup hints.
 class NoteBox extends StatelessWidget {
   const NoteBox({
     super.key,
@@ -214,7 +213,7 @@ class NoteBox extends StatelessWidget {
 
 enum NoteTone { neutral, error }
 
-/// Centered message with an optional action — empty and error states.
+/// Centered message with an optional action, for empty and error states.
 class StatusMessage extends StatelessWidget {
   const StatusMessage({
     super.key,
