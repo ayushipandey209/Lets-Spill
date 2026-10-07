@@ -62,6 +62,7 @@ class Bootstrapper {
         firestore: firestore,
         maxLength: config.maxConfessionLength,
         minLength: config.minConfessionLength,
+        assetLoader: assetLoader,
       ),
       reports: FirebaseReportRepository(auth: auth, firestore: firestore),
       categories: categories,

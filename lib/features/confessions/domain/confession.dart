@@ -14,12 +14,12 @@ enum ConfessionStatus {
   }
 }
 
-/// Quick, one-tap reactions. A reader can pick at most one per confession.
+/// Quick, one-tap reactions. All supportive: there is no way to dislike
+/// someone's confession. A reader can pick at most one per confession.
 enum Reaction {
   same('Same'),
   hugs('Hugs'),
-  wow('Wow'),
-  oof('Oof');
+  wow('Wow');
 
   const Reaction(this.label);
   final String label;

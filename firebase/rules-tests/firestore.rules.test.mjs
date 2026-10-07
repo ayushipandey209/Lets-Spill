@@ -138,7 +138,7 @@ const newConfession = (extra = {}) => ({
   likeCount: 0,
   viewCount: 0,
   saveCount: 0,
-  reactionCounts: { same: 0, hugs: 0, wow: 0, oof: 0 },
+  reactionCounts: { same: 0, hugs: 0, wow: 0 },
   reactionTotal: 0,
   hotScore: hotNow(),
   searchTokens: ['ticket', 'train'],

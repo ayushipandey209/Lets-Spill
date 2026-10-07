@@ -47,7 +47,7 @@ class _IntroPageState extends State<IntroPage> {
     _IntroSlide(
       Icons.favorite_border,
       'React, save, come back.',
-      'Feel seen with a tap: Same, Hugs, Wow, Oof. Save the ones that stay '
+      'Feel seen with a tap: Same, Hugs or Wow. Save the ones that stay '
           'with you.',
     ),
   ];

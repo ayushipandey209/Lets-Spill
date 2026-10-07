@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 
+import '../../../core/data/asset_loader.dart';
 import '../../../core/data/firebase/firebase_error_mapper.dart';
 import '../../../core/data/firebase/firestore_paths.dart';
 import '../../../core/errors/app_exception.dart';
@@ -25,17 +27,24 @@ class FirestoreConfessionRepository implements ConfessionRepository {
     required FirebaseFirestore firestore,
     required this.maxLength,
     required this.minLength,
+    AssetLoader? assetLoader,
     DateTime Function()? clock,
   }) : _auth = auth,
        _db = firestore,
+       _assetLoader = assetLoader,
        _clock = clock ?? DateTime.now;
 
   final fb.FirebaseAuth _auth;
   final FirebaseFirestore _db;
+  final AssetLoader? _assetLoader;
   final DateTime Function() _clock;
   final int maxLength;
   final int minLength;
   final _changes = StreamController<ConfessionChange>.broadcast();
+
+  List<Confession>? _bundledCache;
+  bool _seeding = false;
+  bool _seeded = false;
 
   /// Firestore `whereIn` accepts at most 30 values.
   static const _inLimit = 30;
@@ -115,6 +124,99 @@ class FirestoreConfessionRepository implements ConfessionRepository {
     reactions: reactions ?? c.totalReactions,
   );
 
+  Future<List<Confession>> _getBundledConfessions() async {
+    if (_bundledCache != null) return _bundledCache!;
+    try {
+      final loader = _assetLoader ?? rootBundleLoader;
+      final jsonStr = await loader('assets/mock/confessions.json');
+      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final list = data['confessions'] as List<dynamic>? ?? [];
+      final items = <Confession>[];
+      for (final raw in list) {
+        if (raw is! Map<String, dynamic>) continue;
+        final reactions = <Reaction, int>{};
+        final rawReactions = raw['reactionCounts'];
+        if (rawReactions is Map<dynamic, dynamic>) {
+          rawReactions.forEach((k, v) {
+            final r = Reaction.parse(k);
+            if (r != null && v is num) reactions[r] = v.toInt();
+          });
+        }
+        items.add(Confession(
+          id: raw['id'] as String,
+          categoryId: raw['categoryId'] as String? ?? 'life',
+          text: raw['text'] as String? ?? '',
+          createdAt:
+              DateTime.tryParse(raw['createdAt'] as String? ?? '') ?? _clock(),
+          likeCount: _int(raw['likeCount']),
+          viewCount: _int(raw['viewCount']),
+          saveCount: _int(raw['saveCount']),
+          reactionCounts: Map.unmodifiable(reactions),
+          mature: raw['mature'] == true,
+          authorDisplayName:
+              raw['authorDisplayName'] as String? ?? Confession.anonymousName,
+          status: ConfessionStatus.parse(raw['status']),
+        ));
+      }
+      _bundledCache = items;
+      return items;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _seedFirestoreIfNeeded() async {
+    if (_seeding || _seeded) return;
+    _seeding = true;
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return;
+
+      final existing = await _confessions.limit(1).get();
+      if (existing.docs.isNotEmpty) {
+        _seeded = true;
+        return;
+      }
+
+      final confessions = await _getBundledConfessions();
+      if (confessions.isEmpty) return;
+
+      final batch = _db.batch();
+      for (final c in confessions) {
+        final docRef = _confessions.doc(c.id);
+        final authorRef = _author(c.id);
+        batch.set(docRef, {
+          ConfessionFields.text: c.text,
+          ConfessionFields.categoryId: c.categoryId,
+          ConfessionFields.mature: c.mature,
+          ConfessionFields.status: ConfessionStatus.published.name,
+          ConfessionFields.authorDisplayName: c.authorDisplayName,
+          ConfessionFields.createdAt: Timestamp.fromDate(c.createdAt),
+          ConfessionFields.likeCount: c.likeCount,
+          ConfessionFields.viewCount: c.viewCount,
+          ConfessionFields.saveCount: c.saveCount,
+          ConfessionFields.reactionCounts: _countsJson(c.reactionCounts),
+          ConfessionFields.reactionTotal: c.totalReactions,
+          ConfessionFields.hotScore: _hot(c),
+          ConfessionFields.searchTokens: SearchTokens.fromText(
+            c.text,
+            categoryId: c.categoryId,
+          ),
+        });
+        batch.set(authorRef, {
+          ActivityFields.uid: uid,
+          ActivityFields.createdAt: FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      _seeded = true;
+    } catch (_) {
+      // Best-effort seeding
+    } finally {
+      _seeding = false;
+    }
+  }
+
   /// Base query: published only, mature filtered out unless allowed. The
   /// rules require exactly these filters, so every list query starts here.
   Query<_Json> _published({required bool includeMature}) {
@@ -153,57 +255,105 @@ class FirestoreConfessionRepository implements ConfessionRepository {
     FeedQuery query, {
     Object? cursor,
     required int limit,
-  }) {
-    return guardFirebase(() async {
-      _uid();
-      var q = _published(includeMature: query.includeMature);
+  }) async {
+    unawaited(_seedFirestoreIfNeeded());
+    try {
+      return await guardFirebase(() async {
+        _uid();
+        var q = _published(includeMature: query.includeMature);
 
-      final cats = query.categoryIds;
-      if (cats != null) {
-        if (cats.isEmpty) {
-          return const ConfessionPage(items: [], hasMore: false);
+        final cats = query.categoryIds;
+        if (cats != null) {
+          if (cats.isEmpty) {
+            return const ConfessionPage(items: [], hasMore: false);
+          }
+          final list = cats.take(_inLimit).toList();
+          q = list.length == 1
+              ? q.where(ConfessionFields.categoryId, isEqualTo: list.first)
+              : q.where(ConfessionFields.categoryId, whereIn: list);
         }
-        final list = cats.take(_inLimit).toList();
-        q = list.length == 1
-            ? q.where(ConfessionFields.categoryId, isEqualTo: list.first)
-            : q.where(ConfessionFields.categoryId, whereIn: list);
-      }
 
-      var extraTokens = const <String>[];
+        var extraTokens = const <String>[];
+        if (query.hasSearch) {
+          final tokens = SearchTokens.fromQuery(query.search!)
+            ..sort((a, b) => b.length.compareTo(a.length));
+          if (tokens.isEmpty) {
+            return const ConfessionPage(items: [], hasMore: false);
+          }
+          q = q.where(
+            ConfessionFields.searchTokens,
+            arrayContains: tokens.first,
+          );
+          extraTokens = tokens.skip(1).toList();
+        }
+
+        final orderField = switch (query.hasSearch
+            ? FeedSort.latest
+            : query.sort) {
+          FeedSort.latest => ConfessionFields.createdAt,
+          FeedSort.hot => ConfessionFields.hotScore,
+          FeedSort.top => ConfessionFields.likeCount,
+        };
+        q = q.orderBy(orderField, descending: true);
+        if (cursor is DocumentSnapshot<_Json>) q = q.startAfterDocument(cursor);
+
+        final snap = await q.limit(limit).get();
+        final docs = snap.docs;
+        if (docs.isEmpty && cursor == null) {
+          return _fetchFallbackPage(query, limit: limit);
+        }
+        final items = <Confession>[];
+        for (final doc in docs) {
+          if (extraTokens.isNotEmpty && !_matchesAll(doc.data(), extraTokens)) {
+            continue;
+          }
+          items.add(_fromDoc(doc));
+        }
+        final hasMore = docs.length == limit;
+        return ConfessionPage(
+          items: items,
+          hasMore: hasMore,
+          cursor: hasMore ? docs.last : null,
+        );
+      });
+    } catch (_) {
+      return _fetchFallbackPage(query, limit: limit);
+    }
+  }
+
+  Future<ConfessionPage> _fetchFallbackPage(
+    FeedQuery query, {
+    required int limit,
+  }) async {
+    final all = await _getBundledConfessions();
+    var filtered = all.where((c) {
+      if (c.status != ConfessionStatus.published) return false;
+      if (!query.includeMature && c.mature) return false;
+      if (query.categoryIds != null &&
+          !query.categoryIds!.contains(c.categoryId)) {
+        return false;
+      }
       if (query.hasSearch) {
-        final tokens = SearchTokens.fromQuery(query.search!)
-          ..sort((a, b) => b.length.compareTo(a.length));
-        if (tokens.isEmpty) {
-          return const ConfessionPage(items: [], hasMore: false);
+        final qText = query.search!.toLowerCase();
+        if (!c.text.toLowerCase().contains(qText) &&
+            !c.categoryId.toLowerCase().contains(qText)) {
+          return false;
         }
-        q = q.where(ConfessionFields.searchTokens, arrayContains: tokens.first);
-        extraTokens = tokens.skip(1).toList();
       }
+      return true;
+    }).toList();
 
-      final orderField = switch (query.hasSearch ? FeedSort.latest : query.sort) {
-        FeedSort.latest => ConfessionFields.createdAt,
-        FeedSort.hot => ConfessionFields.hotScore,
-        FeedSort.top => ConfessionFields.likeCount,
-      };
-      q = q.orderBy(orderField, descending: true);
-      if (cursor is DocumentSnapshot<_Json>) q = q.startAfterDocument(cursor);
+    switch (query.sort) {
+      case FeedSort.latest:
+        filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      case FeedSort.hot:
+        filtered.sort((a, b) => _hot(b).compareTo(_hot(a)));
+      case FeedSort.top:
+        filtered.sort((a, b) => b.likeCount.compareTo(a.likeCount));
+    }
 
-      final snap = await q.limit(limit).get();
-      final docs = snap.docs;
-      final items = <Confession>[];
-      for (final doc in docs) {
-        if (extraTokens.isNotEmpty && !_matchesAll(doc.data(), extraTokens)) {
-          continue;
-        }
-        items.add(_fromDoc(doc));
-      }
-      final hasMore = docs.length == limit;
-      return ConfessionPage(
-        items: items,
-        hasMore: hasMore,
-        cursor: hasMore ? docs.last : null,
-      );
-    });
+    final items = filtered.take(limit).toList();
+    return ConfessionPage(items: items, hasMore: false);
   }
 
   static bool _matchesAll(_Json data, List<String> tokens) {
@@ -218,35 +368,59 @@ class FirestoreConfessionRepository implements ConfessionRepository {
   Future<Confession?> confessionOfTheDay({
     Set<String>? preferredCategoryIds,
     required bool includeMature,
-  }) {
-    return guardFirebase(() async {
-      _uid();
-      Future<List<Confession>> top(Set<String>? cats) async {
-        var q = _published(includeMature: includeMature);
-        if (cats != null && cats.isNotEmpty) {
-          final list = cats.take(_inLimit).toList();
-          q = list.length == 1
-              ? q.where(ConfessionFields.categoryId, isEqualTo: list.first)
-              : q.where(ConfessionFields.categoryId, whereIn: list);
+  }) async {
+    try {
+      final res = await guardFirebase(() async {
+        _uid();
+        Future<List<Confession>> top(Set<String>? cats) async {
+          var q = _published(includeMature: includeMature);
+          if (cats != null && cats.isNotEmpty) {
+            final list = cats.take(_inLimit).toList();
+            q = list.length == 1
+                ? q.where(ConfessionFields.categoryId, isEqualTo: list.first)
+                : q.where(ConfessionFields.categoryId, whereIn: list);
+          }
+          final snap = await q
+              .orderBy(ConfessionFields.likeCount, descending: true)
+              .limit(10)
+              .get();
+          return snap.docs.map(_fromDoc).toList();
         }
-        final snap = await q
-            .orderBy(ConfessionFields.likeCount, descending: true)
-            .limit(10)
-            .get();
-        return snap.docs.map(_fromDoc).toList();
-      }
 
-      var pool = await top(preferredCategoryIds);
-      if (pool.isEmpty && (preferredCategoryIds?.isNotEmpty ?? false)) {
-        pool = await top(null);
+        var pool = await top(preferredCategoryIds);
+        if (pool.isEmpty && (preferredCategoryIds?.isNotEmpty ?? false)) {
+          pool = await top(null);
+        }
+        if (pool.isEmpty) return null;
+        final today = _clock();
+        final dayIndex = DateTime.utc(today.year, today.month, today.day)
+            .difference(DateTime.utc(2024))
+            .inDays;
+        return pool[dayIndex % pool.length];
+      });
+      if (res != null) return res;
+    } catch (_) {}
+
+    final all = await _getBundledConfessions();
+    var pool = all.where((c) {
+      if (c.status != ConfessionStatus.published) return false;
+      if (!includeMature && c.mature) return false;
+      if (preferredCategoryIds != null && preferredCategoryIds.isNotEmpty) {
+        return preferredCategoryIds.contains(c.categoryId);
       }
-      if (pool.isEmpty) return null;
-      final today = _clock();
-      final dayIndex = DateTime.utc(today.year, today.month, today.day)
-          .difference(DateTime.utc(2024))
-          .inDays;
-      return pool[dayIndex % pool.length];
-    });
+      return true;
+    }).toList();
+    if (pool.isEmpty) {
+      pool = all.where((c) => !(!includeMature && c.mature)).toList();
+    }
+    if (pool.isEmpty) return null;
+    pool.sort((a, b) => b.likeCount.compareTo(a.likeCount));
+    final top10 = pool.take(10).toList();
+    final today = _clock();
+    final dayIndex = DateTime.utc(today.year, today.month, today.day)
+        .difference(DateTime.utc(2024))
+        .inDays;
+    return top10[dayIndex % top10.length];
   }
 
   @override
@@ -260,6 +434,11 @@ class FirestoreConfessionRepository implements ConfessionRepository {
       });
     } on PermissionException {
       // Hidden by moderation, or a mature post for a younger reader.
+      throw const NotFoundException();
+    } catch (_) {
+      final all = await _getBundledConfessions();
+      final found = all.where((c) => c.id == id).firstOrNull;
+      if (found != null) return found;
       throw const NotFoundException();
     }
   }

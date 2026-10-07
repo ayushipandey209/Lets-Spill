@@ -305,7 +305,6 @@ void main() {
       expect(cubit.state.myConfessions.map((c) => c.id), [mine.id]);
       expect(cubit.state.saved.map((c) => c.id), ['conf-004']);
       expect(cubit.state.liked.map((c) => c.id), ['conf-001']);
-      expect(cubit.state.karma, 0);
 
       cubit.selectSection(ProfileSection.liked);
       expect(cubit.state.current.map((c) => c.id), ['conf-001']);

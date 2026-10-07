@@ -5,7 +5,6 @@ import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../app/theme/app_tokens.dart';
 import '../../../../core/analytics/analytics.dart';
-import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/common.dart';
 import '../../../auth/presentation/session_cubit.dart';
 import '../../../categories/domain/category.dart';
@@ -321,46 +320,14 @@ class _IdentityCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              _Stat(label: 'Karma', value: state.karma),
-              _Stat(label: 'Posts', value: state.myConfessions.length),
-              _Stat(label: 'Reads', value: state.reads),
-            ],
+          Text(
+            'Your corner to vent, rant and read. Nobody can see that these '
+            'posts are yours.',
+            style: context.text.bodySmall!.copyWith(
+              color: t.onInk.withValues(alpha: 0.72),
+            ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
-  final String label;
-  final int value;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Expanded(
-      child: Semantics(
-        label: '$label: $value',
-        excludeSemantics: true,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              Formatters.compactCount(value),
-              style: context.text.titleLarge!.copyWith(color: t.onInk),
-            ),
-            Text(
-              label,
-              style: context.text.labelMedium!.copyWith(
-                color: t.onInk.withValues(alpha: 0.72),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

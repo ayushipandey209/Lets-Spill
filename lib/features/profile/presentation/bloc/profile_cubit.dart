@@ -50,15 +50,6 @@ class ProfileState extends Equatable {
     ProfileSection.liked => liked,
   };
 
-  /// Likes plus reactions received on your posts (like Reddit karma).
-  int get karma => myConfessions.fold(
-    0,
-    (sum, c) => sum + c.likeCount + c.totalReactions,
-  );
-
-  /// Total qualified reads of your posts.
-  int get reads => myConfessions.fold(0, (sum, c) => sum + c.viewCount);
-
   ProfileState copyWith({
     UserProfile? profile,
     ProfileStatus? status,

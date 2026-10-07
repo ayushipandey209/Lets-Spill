@@ -14,7 +14,6 @@ IconData reactionIcon(Reaction r) => switch (r) {
   Reaction.same => Icons.people_alt_outlined,
   Reaction.hugs => Icons.volunteer_activism_outlined,
   Reaction.wow => Icons.auto_awesome_outlined,
-  Reaction.oof => Icons.sentiment_dissatisfied_outlined,
 };
 
 /// Icon for each category, like a community avatar.
@@ -164,7 +163,8 @@ class LikePill extends StatelessWidget {
     return Semantics(
       button: true,
       toggled: liked,
-      label: '${liked ? 'Unlike' : 'Like'}. $count ${count == 1 ? 'like' : 'likes'}',
+      label:
+          '${liked ? 'Unlike' : 'Like'}. $count ${count == 1 ? 'like' : 'likes'}',
       excludeSemantics: true,
       child: Material(
         color: liked ? t.accent.withValues(alpha: 0.12) : t.surface,
@@ -376,7 +376,9 @@ class ConfessionCard extends StatelessWidget {
         color: t.card,
         shape: RoundedRectangleBorder(
           borderRadius: compact ? AppRadii.button : AppRadii.card,
-          side: BorderSide(color: t.border.withValues(alpha: t.isDark ? 1 : 0.7)),
+          side: BorderSide(
+            color: t.border.withValues(alpha: t.isDark ? 1 : 0.7),
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -397,7 +399,10 @@ class ConfessionCard extends StatelessWidget {
                 SizedBox(height: compact ? AppSpacing.xs : AppSpacing.sm),
                 Padding(
                   padding: const EdgeInsets.only(right: 4),
-                  child: MatureBlur(enabled: blurMature && c.mature, child: body),
+                  child: MatureBlur(
+                    enabled: blurMature && c.mature,
+                    child: body,
+                  ),
                 ),
                 SizedBox(height: compact ? AppSpacing.xxs : AppSpacing.xs),
                 Row(
@@ -412,8 +417,7 @@ class ConfessionCard extends StatelessWidget {
                     else
                       MetaStat(icon: Icons.favorite_border, count: c.likeCount),
                     const SizedBox(width: AppSpacing.xs),
-                    if (c.totalReactions > 0)
-                      _ReactionSummary(confession: c),
+                    if (c.totalReactions > 0) _ReactionSummary(confession: c),
                     const SizedBox(width: AppSpacing.xs),
                     MetaStat(
                       icon: Icons.visibility_outlined,
@@ -464,7 +468,10 @@ class _CardHeader extends StatelessWidget {
     final when = Formatters.relativeDate(confession.createdAt);
     return Row(
       children: [
-        CategoryAvatar(categoryId: confession.categoryId, size: compact ? 22 : 28),
+        CategoryAvatar(
+          categoryId: confession.categoryId,
+          size: compact ? 22 : 28,
+        ),
         const SizedBox(width: AppSpacing.xs),
         Expanded(
           child: compact
@@ -573,17 +580,18 @@ class _ConfessionCardSkeletonState extends State<ConfessionCardSkeleton>
   Widget build(BuildContext context) {
     final t = context.tokens;
     final reduceMotion = MediaQuery.of(context).disableAnimations;
-    Widget bar(double widthFactor, {double height = 11}) => FractionallySizedBox(
-      widthFactor: widthFactor,
-      alignment: Alignment.centerLeft,
-      child: Container(
-        height: height,
-        decoration: BoxDecoration(
-          color: t.skeleton,
-          borderRadius: BorderRadius.circular(AppRadii.sm),
-        ),
-      ),
-    );
+    Widget bar(double widthFactor, {double height = 11}) =>
+        FractionallySizedBox(
+          widthFactor: widthFactor,
+          alignment: Alignment.centerLeft,
+          child: Container(
+            height: height,
+            decoration: BoxDecoration(
+              color: t.skeleton,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+            ),
+          ),
+        );
 
     final card = Container(
       padding: const EdgeInsets.all(AppSpacing.md),

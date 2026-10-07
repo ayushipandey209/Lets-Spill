@@ -48,11 +48,11 @@ the security rules reject any write that would let them drift. So
    - card or compact layout; 18+ posts blurred until tapped
 4. **Explore**: search, popular searches and every category. Each category
    has its own page with Hot / New / Top and a mute button.
-5. **Reading**: like, react (Same, Hugs, Wow, Oof), save, share, report. A
+5. **Reading**: like, react (Same, Hugs, Wow; there is no dislike), save, share, report. A
    read counts after 15 seconds on screen, once per reader.
 6. **Spill**: write a confession, post as Anonymous or your handle, mark it
    18+ (adults only).
-7. **You**: karma, posts and reads, plus your Posts, Saved and Liked lists.
+7. **You**: your anonymous name and your Posts, Saved and Liked lists. No scores or points.
 8. **Settings**: theme (light, dark, match device), text size, feed layout,
    reduce motion, Home default sort, Confession of the Day, 18+ visibility
    and blur, interests, muted categories, default posting identity,

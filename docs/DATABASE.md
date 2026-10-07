@@ -35,7 +35,7 @@ confessions/{confessionId}                   readable by signed-in users
   authorDisplayName      "Anonymous" or "@QuietComet27"
   createdAt              server time
   likeCount              = number of likes/{uid} documents
-  reactionCounts         { same, hugs, wow, oof }
+  reactionCounts         { same, hugs, wow }
   reactionTotal          = number of reactions/{uid} documents
   viewCount              = number of views/{uid} documents
   saveCount              = number of users/*/saves/{confessionId}
