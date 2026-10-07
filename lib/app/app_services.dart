@@ -1,5 +1,6 @@
 import '../core/analytics/analytics.dart';
 import '../core/config/app_config.dart';
+import '../core/services/onesignal_service.dart';
 import '../core/services/share_service.dart';
 import '../features/auth/domain/auth_repository.dart';
 import '../features/categories/domain/category.dart';
@@ -19,6 +20,7 @@ class AppServices {
     required this.categories,
     required this.share,
     this.analytics = const NoopAnalytics(),
+    this.notifications = const NoopNotificationService(),
   });
 
   final AppConfig config;
@@ -29,4 +31,5 @@ class AppServices {
   final CategoryCatalog categories;
   final ShareService share;
   final Analytics analytics;
+  final NotificationService notifications;
 }

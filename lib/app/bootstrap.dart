@@ -7,6 +7,7 @@ import '../core/analytics/firebase_analytics_service.dart';
 import '../core/config/app_config.dart';
 import '../core/data/asset_loader.dart';
 import '../core/errors/app_exception.dart';
+import '../core/services/onesignal_service.dart';
 import '../core/services/share_service.dart';
 import '../features/auth/data/firebase_auth_repository.dart';
 import '../features/categories/data/asset_category_repository.dart';
@@ -16,12 +17,13 @@ import '../features/reports/data/firebase_report_repository.dart';
 import '../firebase_options.dart';
 import 'app_services.dart';
 
-/// Wires the app to Firebase:
+/// Wires the app to Firebase and OneSignal:
 ///
 /// * Authentication (Google) for accounts.
 /// * Cloud Firestore for profiles, settings, confessions, likes, reactions,
 ///   saves, views and reports.
 /// * Google Analytics for product analytics.
+/// * OneSignal for push notifications.
 ///
 /// Categories are app configuration and ship with the app
 /// (`assets/mock/categories.json`); the security rules hold the same list.
@@ -41,6 +43,11 @@ class Bootstrapper {
     await _initializeFirebase();
     final auth = fb.FirebaseAuth.instance;
     final firestore = FirebaseFirestore.instance;
+
+    final notifications = OneSignalService(
+      appId: '1ba2cc91-1cab-4be4-ae58-f7d5d13f730e',
+    );
+    await notifications.initialize();
 
     final categories = await AssetCategoryRepository(
       loader: assetLoader,
@@ -68,6 +75,7 @@ class Bootstrapper {
       categories: categories,
       share: shareService,
       analytics: analytics,
+      notifications: notifications,
     );
   }
 

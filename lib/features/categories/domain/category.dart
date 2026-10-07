@@ -38,7 +38,7 @@ class Category extends Equatable {
 class CategoryCatalog extends Equatable {
   CategoryCatalog(List<Category> categories)
     : categories = List.unmodifiable(
-        [...categories]..sort((a, b) => a.order.compareTo(b.order)),
+        <Category>[...categories]..sort((a, b) => a.order.compareTo(b.order)),
       ),
       _byId = {for (final c in categories) c.id: c};
 

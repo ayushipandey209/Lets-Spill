@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/widgets/common.dart';
-import '../../core/widgets/wordmark.dart';
 import '../theme/app_tokens.dart';
 import 'app_init_cubit.dart';
 
@@ -23,23 +22,23 @@ class SplashPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: t.background,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: ContentWidth(
-                maxWidth: 520,
+        child: Center(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(height: AppSpacing.xxl),
                     Image.asset(
                       'assets/images/splash_logo.png',
-                      width: 240,
+                      width: 210,
                       fit: BoxFit.contain,
                     ),
-                    const SizedBox(height: AppSpacing.xl),
+                    const SizedBox(height: AppSpacing.lg),
                     AnimatedSwitcher(
                       duration: AppMotion.medium,
                       child: failed
@@ -48,17 +47,17 @@ class SplashPage extends StatelessWidget {
                               label: 'Loading',
                               child: SizedBox(
                                 key: const ValueKey('loading'),
-                                width: 120,
+                                width: 100,
                                 child: LinearProgressIndicator(
-                                  minHeight: 2,
-                                  backgroundColor: t.border.withValues(alpha: 0.3),
+                                  minHeight: 2.5,
+                                  backgroundColor:
+                                      t.border.withValues(alpha: 0.35),
                                   color: t.ink,
-                                  borderRadius: BorderRadius.circular(2),
+                                  borderRadius: BorderRadius.circular(3),
                                 ),
                               ),
                             ),
                     ),
-                    const SizedBox(height: AppSpacing.xxl),
                   ],
                 ),
               ),

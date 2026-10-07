@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../core/analytics/analytics.dart';
 import '../core/config/app_config.dart';
 import '../core/data/key_value_store.dart';
+import '../core/services/onesignal_service.dart';
 import '../core/services/share_service.dart';
 import '../core/widgets/common.dart';
 import '../features/auth/domain/auth_repository.dart';
@@ -164,7 +165,7 @@ class _ReadingPreferences extends StatelessWidget {
   }
 }
 
-class _ServicesScope extends StatelessWidget {
+class _ServicesScope extends StatefulWidget {
   const _ServicesScope({
     required this.services,
     required this.navigatorKey,
@@ -176,24 +177,87 @@ class _ServicesScope extends StatelessWidget {
   final Widget child;
 
   @override
+  State<_ServicesScope> createState() => _ServicesScopeState();
+}
+
+class _ServicesScopeState extends State<_ServicesScope> {
+  bool _dialogShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribeToOneSignal();
+  }
+
+  void _subscribeToOneSignal() {
+    widget.services.notifications.addPushSubscriptionObserver((_) {
+      _showVerificationDialogIfNeeded();
+    });
+  }
+
+  void _showVerificationDialogIfNeeded() {
+    if (_dialogShown) return;
+    _dialogShown = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final navContext = widget.navigatorKey.currentContext;
+      if (navContext == null || !mounted) return;
+
+      showDialog<void>(
+        context: navContext,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Your OneSignal SDK integration is complete!'),
+            content: const Text(
+              'You can now send Push Notifications & In-App Messages through OneSignal. '
+              'Tap below to enable push notifications.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  widget.services.notifications.requestPushPermission();
+                },
+                child: const Text('Got it'),
+              ),
+            ],
+          );
+        },
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
       providers: [
-        RepositoryProvider<AppServices>.value(value: services),
-        RepositoryProvider<AppConfig>.value(value: services.config),
-        RepositoryProvider<AuthRepository>.value(value: services.auth),
-        RepositoryProvider<ProfileRepository>.value(value: services.profiles),
-        RepositoryProvider<ConfessionRepository>.value(
-          value: services.confessions,
+        RepositoryProvider<AppServices>.value(value: widget.services),
+        RepositoryProvider<AppConfig>.value(value: widget.services.config),
+        RepositoryProvider<AuthRepository>.value(value: widget.services.auth),
+        RepositoryProvider<ProfileRepository>.value(
+          value: widget.services.profiles,
         ),
-        RepositoryProvider<ReportRepository>.value(value: services.reports),
-        RepositoryProvider<CategoryCatalog>.value(value: services.categories),
-        RepositoryProvider<ShareService>.value(value: services.share),
-        RepositoryProvider<Analytics>.value(value: services.analytics),
+        RepositoryProvider<ConfessionRepository>.value(
+          value: widget.services.confessions,
+        ),
+        RepositoryProvider<ReportRepository>.value(
+          value: widget.services.reports,
+        ),
+        RepositoryProvider<CategoryCatalog>.value(
+          value: widget.services.categories,
+        ),
+        RepositoryProvider<ShareService>.value(value: widget.services.share),
+        RepositoryProvider<Analytics>.value(value: widget.services.analytics),
+        RepositoryProvider<NotificationService>.value(
+          value: widget.services.notifications,
+        ),
       ],
       child: BlocProvider(
-        create: (_) =>
-            SessionCubit(auth: services.auth, profiles: services.profiles),
+        create: (_) => SessionCubit(
+          auth: widget.services.auth,
+          profiles: widget.services.profiles,
+        ),
         child: MultiBlocListener(
           listeners: [
             BlocListener<SessionCubit, SessionState>(
@@ -203,7 +267,9 @@ class _ServicesScope extends StatelessWidget {
               // When the session changes stage, drop pushed routes so the
               // gate is on top (e.g. after sign-out or account deletion).
               listener: (context, state) {
-                navigatorKey.currentState?.popUntil((route) => route.isFirst);
+                widget.navigatorKey.currentState?.popUntil(
+                  (route) => route.isFirst,
+                );
               },
             ),
             BlocListener<SessionCubit, SessionState>(
@@ -218,15 +284,16 @@ class _ServicesScope extends StatelessWidget {
                   _applySettingsToAnalytics(settings),
             ),
           ],
-          child: child,
+          child: widget.child,
         ),
       ),
     );
   }
 
-  /// Keeps analytics identity and synced settings in step with the session.
+  /// Keeps analytics and notifications identity and synced settings in step with the session.
   void _syncAccount(BuildContext context, SessionState state) {
-    final analytics = services.analytics;
+    final analytics = widget.services.analytics;
+    final notifications = widget.services.notifications;
     final settingsCubit = context.read<SettingsCubit>();
     switch (state.status) {
       case SessionStatus.signedOut:
@@ -235,10 +302,15 @@ class _ServicesScope extends StatelessWidget {
           ..setUser(null)
           ..setUserProperty(AnalyticsProperties.ageRange, null)
           ..screen('intro');
+        notifications.logout();
       case SessionStatus.needsOnboarding:
+        final uid = state.user?.uid;
         analytics
-          ..setUser(state.user?.uid)
+          ..setUser(uid)
           ..screen('onboarding');
+        if (uid != null) {
+          notifications.login(uid);
+        }
       case SessionStatus.ready:
         final profile = state.profile!;
         analytics
@@ -251,13 +323,14 @@ class _ServicesScope extends StatelessWidget {
             AnalyticsProperties.categoriesCount,
             '${profile.preferredCategoryIds.length}',
           );
-        settingsCubit.remoteSaver = services.profiles.updateSettings;
+        notifications.login(profile.uid);
+        settingsCubit.remoteSaver = widget.services.profiles.updateSettings;
         final remote = profile.settings;
         if (remote != null) {
           settingsCubit.adoptRemote(remote);
         } else {
           // First sign-in on this account: keep what was chosen on device.
-          services.profiles.updateSettings(settingsCubit.state).catchError(
+          widget.services.profiles.updateSettings(settingsCubit.state).catchError(
             (Object _) {},
           );
         }
@@ -270,7 +343,7 @@ class _ServicesScope extends StatelessWidget {
   }
 
   void _applySettingsToAnalytics(AppSettings s) {
-    final analytics = services.analytics;
+    final analytics = widget.services.analytics;
     analytics
       ..setEnabled(s.analyticsEnabled)
       ..setUserProperty(AnalyticsProperties.theme, s.theme.name)
