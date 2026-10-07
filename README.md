@@ -154,3 +154,4 @@ profile identity card invert to black-on-beige for emphasis.
 - [ ] Move confessions + engagement to Firestore (shared across users).
 - [ ] Firebase App Check, budget alerts, and a moderation workflow for `reports`.
 # Lets-Spill
+# Lets-Spill
