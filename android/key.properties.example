@@ -1,0 +1,5 @@
+# Copy to android/key.properties (gitignored) and fill in your own passwords.
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=upload
+storeFile=/Users/ayushipandey/keys/letspill-upload.jks
